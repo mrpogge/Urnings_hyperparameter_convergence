@@ -15,13 +15,17 @@ urningsSimFactory = function(r_pl,
                              sigma,
                              change = FALSE,
                              coverage = FALSE,
-                             omit_message = FALSE)
+                             omit_message = FALSE,
+                             save_item_urnings = FALSE)
 {
+  nplayers = length(r_pl)
+  nitems = length(r_it)
   #mse
   outcome = matrix(0, nrow = nplayers, ncol = ngames)
   if(coverage == TRUE){
     coverage_results = matrix(0, nrow = nplayers, ncol = ngames)
   }
+
 
   
   #source
@@ -92,6 +96,8 @@ urningsSimFactory = function(r_pl,
         CI = binconf(r_pl[pl], n_i, method = "wilson")[2:3]
         coverage_results[pl, ng] = as.numeric(CI[1] < pi_i & pi_i < CI[2])
       }
+      #this is just for the check 
+      
     }
   }
 
@@ -101,7 +107,6 @@ urningsSimFactory = function(r_pl,
   } else {
     return(cbind(outcome, coverage_results))
   }
-  
 }
 
 urningsFactory = function(data,

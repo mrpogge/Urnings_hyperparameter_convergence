@@ -74,7 +74,7 @@ for(pus in player_urn_sizes){ #4
             r_pl = numeric(length = nplayers) + as.integer(pus / 2)
             r_it = numeric(nitems)
             first_half = unlist(lapply(pi_it[1:(nitems/2)], rbinom, n = 1, size = ius))
-            second_half = ius - first_half
+            second_half = ius - rev(first_half)
             r_it = c(first_half, second_half)
             r_pl[seq(1,nplayers,1) %% (100 / cs) != 0] = unlist(lapply(pi_pl[seq(1,nplayers,1) %% (100 / cs) != 0], 
                                                                        rbinom, n = 1, size = pus))

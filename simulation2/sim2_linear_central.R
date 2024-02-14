@@ -1,6 +1,6 @@
 source("urnings_handler.R")
 
-set.seed(13181913)
+set.seed(13181917)
 
 #environment settings
 ngames = 500
@@ -10,6 +10,7 @@ nitems = 1000
 #true values
 pi_pl = qnorm(seq(1/(nplayers+1),nplayers/(nplayers+1),length=nplayers))
 pi_pl = exp(pi_pl) / (1 + exp(pi_pl)) 
+pi_pl = sample(pi_pl, length(pi_pl), replace = FALSE)
 pi_it = pi_it = qnorm(seq(1/(nitems+1),nitems/(nitems+1),length=nitems))
 pi_it = exp(pi_it) / (1 + exp(pi_it)) 
 pi_it = sort(pi_it)
@@ -30,24 +31,21 @@ player_urn_sizes  =  c(8,16,32,64)
 #item starting
 r_it = numeric(nitems)
 first_half = unlist(lapply(pi_it[1:500], rbinom, n = 1, size = 64))
-second_half = 64 - first_half
+second_half = 64 - rev(first_half)
 r_it = c(first_half, second_half)
 
 #change
 #discrete positive
-logit_changes = c(-0.5, 0, 0.25, 0.5, 1)
+logit_changes = c(-0.5, 0, 0.5, 1,2) 
 change_per_jump = rep(logit_changes, times = 900) / ngames
 change_matrix = matrix(0, nrow = nplayers, ncol = ngames)
-change_matrix[,1] = log(pi_pl / (1-pi_pl))
+change_matrix[,1] = log(pi_pl / (1-pi_pl)) + change_per_jump
 for(i in 2:ngames){
   change_matrix[,i] = change_matrix[,i-1] + change_per_jump
 }
 
 change_matrix = exp(change_matrix) / (1 + exp(change_matrix))
-plot(change_matrix[1, ], type = "l", col = 1, ylim = c(0,1), ylab = "ability", main = "Discrete positive")
-for(i in 2:nplayers){
-  lines(change_matrix[i, ], col = 1)
-}
+
 
 # output
 results = matrix(0, nrow = nplayers*4*4, ncol = 6 + ngames + ngames -1)
@@ -79,19 +77,19 @@ for(pus in player_urn_sizes){ #4
     #setting up the urnings factory 
     game_type = urnings_game(r_pl, 
                              r_it,
-                             pus,
-                             64,
-                             change_matrix,
-                             pi_it,
-                             ngames,
-                             "Urnings2",
-                             ad_text[ads],
-                             TRUE,
+                             player_urn_size = pus,
+                             item_urn_size = 64,
+                             player_true_value = change_matrix,
+                             item_true_value = pi_it,
+                             n_games = ngames,
+                             alg_type = "Urnings2",
+                             adaptivity = ad_text[ads],
+                             is_paired_update = TRUE,
                              mu = ad[ads,1],
                              sigma = ad[ads, 2],
-                             coverage = TRUE,
+                             coverage = FALSE,
                              change = TRUE)
-    game = play(game_type, omit_message = TRUE)
+    game = play(game_type, omit_message = FALSE)
     
     #saving results
     #creating fix cols
