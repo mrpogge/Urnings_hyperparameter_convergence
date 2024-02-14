@@ -2,10 +2,6 @@
 ## Codebase to replicate the analyses of the paper
 
 Team: 
- - **Bence Gergely** (Eötvös Lóránd University, Károli University of the Reformed Church, Budapest, Hungary)
- - Matthieu Brinkhuis (Utrecht University, Utrecht, The Netherlands)
- - Szabolcs Takács (Károli University of the Reformed Church, Budapest, Hungary)
- - **Maria Bolsinova** (Tilburg University, Tilburg, The Netherlands)
 
 ### Aim
 
@@ -52,5 +48,4 @@ All material concerning this research falls under the XY licence. Replication of
 and only if they are properly cited!
 
 ### Closing remarks
-This research was partly funded by the Új Nemzeti Kiválóság Program (ÚNKP) for doctorate students. 
 
