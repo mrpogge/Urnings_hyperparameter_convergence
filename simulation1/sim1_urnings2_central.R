@@ -71,6 +71,7 @@ for(pus in player_urn_sizes){ #4
         print(message)
         
         #starting values and urning values
+        indexes = sample(1:nplayers, nplayers, replace = FALSE)
         if(cs == 999){
           r_pl = numeric(length = nplayers) + as.integer(pus / 2)
           r_it = numeric(length = nitems) + as.integer(ius / 2)
@@ -79,12 +80,17 @@ for(pus in player_urn_sizes){ #4
           r_pl = numeric(length = nplayers) + as.integer(pus / 2)
           r_it = numeric(nitems)
           first_half = unlist(lapply(pi_it[1:(nitems/2)], rbinom, n = 1, size = ius))
-          second_half = ius - first_half
+          second_half = ius - rev(first_half)
           r_it = c(first_half, second_half)
           r_pl[seq(1,nplayers,1) %% (100 / cs) != 0] = unlist(lapply(pi_pl[seq(1,nplayers,1) %% (100 / cs) != 0], 
                                                                      rbinom, n = 1, size = pus))
           player_label = as.numeric(seq(1,nplayers,1) %% (100 / cs) == 0)
+          player_label = player_label[indexes]
         }
+        
+        #randomly permutating players
+        r_pl = r_pl[indexes]
+        pi_pl = pi_pl[indexes]
         
         #setting up the urnings factory 
         game_type = urnings_game(r_pl, 

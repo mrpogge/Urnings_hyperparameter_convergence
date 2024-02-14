@@ -30,7 +30,7 @@ colnames(sim2_linear)[4] = "amount_of_change"
 #recreating linear change
 ################################################################################
 change_matrix_linear = matrix(0, nrow = nrow(sim2_linear), ncol = 500)
-change_matrix_linear[,1] = log(sim2_linear[,"true_value_first"] / (1-sim2_linear[,"true_value_first"]))
+change_matrix_linear[,1] = log(sim2_linear[,"true_value_first"] / (1-sim2_linear[,"true_value_first"])) + sim2_linear[, "amount_of_change"]
 for(cl in 2:ncol(change_matrix_linear)){
   change_matrix_linear[, cl] = change_matrix_linear[, cl-1] + sim2_linear[, "amount_of_change"]
 }
@@ -48,31 +48,33 @@ rm(linear_mse_helper)
 ################################################################################
 #calculating coverage
 ################################################################################
-cumulative_coverage = function(X){
-  container = matrix(0, nrow=nrow(X), ncol = ncol(X))
-  container[,1] = X[,1]
-  for(i in 2:ncol(X)){
-    container[,i] = rowSums(X[,1:i]) / i
-    print(i)
-  }
-  return(container)
-  
-}
-
 covered = rowMeans(sim2_linear %>% select(starts_with("coverage")))
 sim2_linear = cbind(sim2_linear, covered)
 colnames(sim2_linear)[1007] = "covered"
 
-linear_coverage_helper = cumulative_coverage(sim2_linear %>% select(starts_with("coverage")))
+################################################################################
+#calculating baseline
+################################################################################
+baseline_linear = readRDS("sim2_baseline.rds")
+baseline_results = baseline_linear[[1]]
+baseline_coverage = baseline_linear[[2]]
+rm(baseline_linear)
 
-linear_coverage = sim2_linear %>% select(-starts_with("iter")) 
-linear_coverage[,7:506] = linear_coverage_helper
-rm(linear_coverage_helper,covered)
+baseline_results = baseline_res = baseline_results / as.numeric(sim2_linear[,2])
+baseline_results = (baseline_results - change_matrix_linear) ^ 2
+baseline_results = cbind(sim2_linear[,1:6], baseline_results)
+baseline_coverage = cbind(sim2_linear[,1:6], baseline_coverage)
+baseline_res = cbind(sim2_linear[,1:6], baseline_res)
+colnames(baseline_results) = c(colnames(sim2_linear[,1:6]), paste0("iter", c(1:500)))
+colnames(baseline_coverage) = c(colnames(sim2_linear[,1:6]), paste0("coverage", c(1:500)))
+colnames(baseline_res) = c(colnames(sim2_linear[,1:6]), paste0("iter", c(1:500)))
 
+change_matrix_avg = cbind(sim2_linear[,1:6], change_matrix_linear)
+colnames(change_matrix_avg) = c(colnames(sim2_linear[,1:6]), paste0("iter", c(1:500)))
 ################################################################################
 #main effect of adaptivity
 ################################################################################
-adapt_me = linear_coverage %>%
+adapt_me = sim2_linear %>%
   group_by(adapt) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
   select(adapt,starts_with("coverage"))
@@ -82,6 +84,17 @@ lines(as.vector(unlist(adapt_me[1,-c(1,2)])), col = 2)
 lines(as.vector(unlist(adapt_me[3,-c(1,2)])), col = 3)
 lines(as.vector(unlist(adapt_me[2,-c(1,2)])), col = 4)
 
+b_adapt_me = baseline_coverage %>%
+  group_by(adapt) %>%
+  summarise(across(starts_with("coverage"), ~ mean(.))) %>%
+  select(adapt,starts_with("coverage"))
+
+adapt_squared_difference = adapt_me[,-1] - b_adapt_me[,-1]
+
+plot(as.vector(unlist(adapt_squared_difference[4,])), type = "l", ylim = c(-0.05, 0.05), ylab = "Coverage Difference")
+lines(as.vector(unlist(adapt_squared_difference[1,])), col = 2)
+lines(as.vector(unlist(adapt_squared_difference[3,])), col = 3)
+lines(as.vector(unlist(adapt_squared_difference[2,])), col = 4)
 
 adapt_me = linear_mse %>%
   group_by(adapt) %>%
@@ -94,10 +107,23 @@ lines(as.vector(unlist(adapt_me[1,-c(1,2)])), col = 2)
 lines(as.vector(unlist(adapt_me[3,-c(1,2)])), col = 3)
 lines(as.vector(unlist(adapt_me[2,-c(1,2)])), col = 4)
 
+b_adapt_me = baseline_results %>%
+  group_by(adapt) %>%
+  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  select(adapt,starts_with("iter"))
+
+adapt_squared_difference = adapt_me[,-1] - b_adapt_me[,-1]
+
+plot(as.vector(unlist(adapt_squared_difference[4,])), type = "l", ylim = c(-0.05, 0.05), ylab = "MSE Difference")
+lines(as.vector(unlist(adapt_squared_difference[1,])), col = 2)
+lines(as.vector(unlist(adapt_squared_difference[3,])), col = 3)
+lines(as.vector(unlist(adapt_squared_difference[2,])), col = 4)
+
+
 ################################################################################
 #main effect of urn size
 ################################################################################
-urn_size_me = linear_coverage %>%
+urn_size_me = sim2_linear %>%
   group_by(player_urn_size) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
   select(player_urn_size,starts_with("coverage"))
@@ -107,6 +133,17 @@ lines(as.vector(unlist(urn_size_me[1,-c(1,2)])), col = 2)
 lines(as.vector(unlist(urn_size_me[2,-c(1,2)])), col = 3)
 lines(as.vector(unlist(urn_size_me[3,-c(1,2)])), col = 4)
 
+b_urn_size_me = baseline_coverage %>%
+  group_by(player_urn_size) %>%
+  summarise(across(starts_with("coverage"), ~ mean(.))) %>%
+  select(player_urn_size,starts_with("coverage"))
+
+urn_size_squared_difference = urn_size_me[,-1] - b_urn_size_me[,-1]
+
+plot(as.vector(unlist(urn_size_squared_difference[4,])), type = "l", ylim = c(-0.05, 0.05), ylab = "Coverage Difference")
+lines(as.vector(unlist(urn_size_squared_difference[1,])), col = 2)
+lines(as.vector(unlist(urn_size_squared_difference[2,])), col = 3)
+lines(as.vector(unlist(urn_size_squared_difference[3,])), col = 4)
 
 urn_size_me = linear_mse %>%
   group_by(player_urn_size) %>%
@@ -119,10 +156,42 @@ lines(as.vector(unlist(urn_size_me[1,-c(1,2)])), col = 2)
 lines(as.vector(unlist(urn_size_me[2,-c(1,2)])), col = 3)
 lines(as.vector(unlist(urn_size_me[3,-c(1,2)])), col = 4)
 
+b_urn_size_me = baseline_results %>%
+  group_by(player_urn_size) %>%
+  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  select(player_urn_size,starts_with("iter"))
+
+urn_size_squared_difference = urn_size_me[,-1] - b_urn_size_me[,-1]
+
+plot(as.vector(unlist(urn_size_squared_difference[4,])), type = "l", ylim = c(-0.005, 0.005), ylab = "MSE Difference")
+lines(as.vector(unlist(urn_size_squared_difference[1,])), col = 2)
+lines(as.vector(unlist(urn_size_squared_difference[2,])), col = 3)
+lines(as.vector(unlist(urn_size_squared_difference[3,])), col = 4)
+
+one_slice = linear_mse[linear_mse[,2] == 8, 200]
+samples = numeric(20000)
+for(i in 1:20000){
+  samples[i] = mean(sample(one_slice, 500, replace = FALSE))
+}
+
+hist(samples)
+t.test(samples, mu = 0)$conf.int[2]- t.test(samples, mu = 0)$conf.int[1]
+
+for(i in 1:500){
+  one_slice = sim2_linear[sim2_linear[,2] == 8, 600]
+  samples = numeric(2000)
+  for(i in 1:2000){
+    samples[i] = mean(sample(one_slice, 500, replace = FALSE))
+  }
+}
+
+hist(samples)
+t.test(samples, mu = 0)$conf.int[2]- t.test(samples, mu = 0)$conf.int[1]
+
 ################################################################################
 #main effect amount of change
 ################################################################################
-change_me = linear_coverage %>%
+change_me = sim2_linear %>%
   group_by(amount_of_change) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
   select(amount_of_change,starts_with("coverage"))
@@ -133,23 +202,78 @@ lines(as.vector(unlist(change_me[3,-c(1,2)])), col = 3)
 lines(as.vector(unlist(change_me[4,-c(1,2)])), col = 4)
 lines(as.vector(unlist(change_me[5,-c(1,2)])), col = 5)
 
+b_change_me = baseline_coverage %>%
+  group_by(amount_of_change) %>%
+  summarise(across(starts_with("coverage"), ~ mean(.))) %>%
+  select(amount_of_change,starts_with("coverage"))
+
+change_squared_error = change_me[, -1] - b_change_me[, -1]
+
+plot(as.vector(unlist(change_squared_error[1,])), type = "l", ylim = c(-0.05, 0.05), ylab = "Coverage Difference")
+lines(as.vector(unlist(change_squared_error[2,])), col = 2)
+lines(as.vector(unlist(change_squared_error[3,])), col = 3)
+lines(as.vector(unlist(change_squared_error[4,])), col = 4)
+lines(as.vector(unlist(change_squared_error[5,])), col = 5)
 
 change_me = linear_mse %>%
   group_by(amount_of_change) %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(amount_of_change,starts_with("iter"))
 
+b_change_me = baseline_results %>%
+  group_by(amount_of_change) %>%
+  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  select(amount_of_change,starts_with("iter"))
 
-plot(as.vector(unlist(change_me[1,-c(1,2)])), type = "l", ylim = c(0, 0.03), ylab = "MSE")
-lines(as.vector(unlist(change_me[2,-c(1,2)])), col = 2)
-lines(as.vector(unlist(change_me[3,-c(1,2)])), col = 3)
-lines(as.vector(unlist(change_me[4,-c(1,2)])), col = 4)
-lines(as.vector(unlist(change_me[5,-c(1,2)])), col = 5)
+change_squared_error = change_me[, -1] - b_change_me[, -1]
+
+plot(as.vector(unlist(change_squared_error[1,])), type = "l", ylim = c(-0.01, 0.01), ylab = "MSE Difference")
+lines(as.vector(unlist(change_squared_error[2,])), col = 2)
+lines(as.vector(unlist(change_squared_error[3,])), col = 3)
+lines(as.vector(unlist(change_squared_error[4,])), col = 4)
+lines(as.vector(unlist(change_squared_error[5,])), col = 5)
+
+# this is the analysis we are looking for
+change_me = sim2_linear %>%
+  group_by(amount_of_change) %>%
+  filter(dist_type == "better") %>%
+  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  select(amount_of_change,starts_with("iter"))
+
+plot(as.vector(unlist(change_me[1,-c(1,2)][1:100])), type = "l", ylim = c(0.45, 0.55), ylab = "Coverage")
+lines(as.vector(unlist(change_me[2,-c(1,2)][1:100])), col = 2)
+lines(as.vector(unlist(change_me[3,-c(1,2)][1:100])), col = 3)
+lines(as.vector(unlist(change_me[4,-c(1,2)][1:100])), col = 4)
+lines(as.vector(unlist(change_me[5,-c(1,2)][1:100])), col = 5)
+
+b_change_me_res = baseline_res %>%
+  group_by(amount_of_change) %>%
+  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  select(amount_of_change,starts_with("iter"))
+
+true_change_me = change_matrix_avg %>%
+  group_by(amount_of_change) %>%
+  filter(dist_type == "better") %>%
+  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  select(amount_of_change,starts_with("iter"))
+
+
+lines(as.vector(unlist(b_change_me_res[1,-c(1,2)])), col = 1, lty = "dotted")
+lines(as.vector(unlist(b_change_me_res[2,-c(1,2)])), col = 2, lty = "dotted")
+lines(as.vector(unlist(b_change_me_res[3,-c(1,2)])), col = 3, lty = "dotted")
+lines(as.vector(unlist(b_change_me_res[4,-c(1,2)])), col = 4, lty = "dotted")
+lines(as.vector(unlist(b_change_me_res[5,-c(1,2)])), col = 5, lty = "dotted")
+
+lines(as.vector(unlist(true_change_me[1,-c(1,2)][1:100])), col = 1, lty = "dotted")
+lines(as.vector(unlist(true_change_me[2,-c(1,2)][1:100])), col = 2, lty = "dotted")
+lines(as.vector(unlist(true_change_me[3,-c(1,2)][1:100])), col = 3, lty = "dotted")
+lines(as.vector(unlist(true_change_me[4,-c(1,2)][1:100])), col = 4, lty = "dotted")
+lines(as.vector(unlist(true_change_me[5,-c(1,2)][1:100])), col = 5, lty = "dotted")
 
 ################################################################################
 #main effect of distribution type
 ################################################################################
-dist_me = linear_coverage %>%
+dist_me = sim2_linear %>%
   group_by(dist_type) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
   select(dist_type,starts_with("coverage"))
@@ -158,6 +282,16 @@ plot(as.vector(unlist(dist_me[2,-c(1)])), type = "l", ylim = c(0.9, 1), ylab = "
 lines(as.vector(unlist(dist_me[1,-c(1)])), col = 2)
 lines(as.vector(unlist(dist_me[3,-c(1)])), col = 3)
 
+b_dist_me = baseline_coverage %>%
+  group_by(dist_type) %>%
+  summarise(across(starts_with("coverage"), ~ mean(.))) %>%
+  select(dist_type,starts_with("coverage"))
+
+dist_squared_error = dist_me[, -1] - b_dist_me[, -1]
+
+plot(as.vector(unlist(dist_squared_error[2,-c(1)])), type = "l", ylim = c(-0.05, 0.05), ylab = "Coverage")
+lines(as.vector(unlist(dist_squared_error[1,-c(1)])), col = 2)
+lines(as.vector(unlist(dist_squared_error[3,-c(1)])), col = 3)
 
 dist_me = linear_mse %>%
   group_by(dist_type) %>%
@@ -167,6 +301,17 @@ dist_me = linear_mse %>%
 plot(as.vector(unlist(dist_me[2,-c(1,2)])), type = "l", ylim = c(0, 0.03), ylab = "MSE")
 lines(as.vector(unlist(dist_me[1,-c(1,2)])), col = 2)
 lines(as.vector(unlist(dist_me[3,-c(1,2)])), col = 3)
+
+b_dist_me = baseline_results %>%
+  group_by(dist_type) %>%
+  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  select(dist_type,starts_with("iter"))
+
+dist_squared_error = dist_me[, -1] - b_dist_me[, -1]
+
+plot(as.vector(unlist(dist_squared_error[2,-c(1)])), type = "l", ylim = c(-0.05, 0.05), ylab = "Coverage")
+lines(as.vector(unlist(dist_squared_error[1,-c(1)])), col = 2)
+lines(as.vector(unlist(dist_squared_error[3,-c(1)])), col = 3)
 
 
 ################################################################################
@@ -233,8 +378,44 @@ lines(as.vector(unlist(urn_sizeXchange[17,-c(1,2)])), col = 2)
 lines(as.vector(unlist(urn_sizeXchange[18,-c(1,2)])), col = 3)
 lines(as.vector(unlist(urn_sizeXchange[19,-c(1,2)])), col = 4)
 
+b_urn_sizeXchange = baseline_results %>%
+  group_by(player_urn_size, amount_of_change) %>%
+  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  select(amount_of_change, player_urn_size,starts_with("iter")) %>%
+  arrange(amount_of_change)
+
+urn_sizeXchange_squared_error = urn_sizeXchange[,-c(1,2)] - b_urn_sizeXchange[,-c(1,2)]
+
+plot(as.vector(unlist(urn_sizeXchange_squared_error[4,-c(1,2)])), type = "l", ylim = c(-0.01, 0.01), ylab = "MSE Difference", main = "Change = -0.001")
+lines(as.vector(unlist(urn_sizeXchange_squared_error[1,-c(1,2)])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[2,-c(1,2)])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[3,-c(1,2)])), col = 4)
+
+plot(as.vector(unlist(urn_sizeXchange_squared_error[8,-c(1,2)])), type = "l", ylim = c(-0.01, 0.01), ylab = "MSE Difference", main = "Change = 0")
+lines(as.vector(unlist(urn_sizeXchange_squared_error[5,-c(1,2)])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[6,-c(1,2)])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[7,-c(1,2)])), col = 4)
+
+plot(as.vector(unlist(urn_sizeXchange_squared_error[12,-c(1,2)])), type = "l", ylim = c(-0.01, 0.01), ylab = "MSE Difference", main = "Change = 0.0005")
+lines(as.vector(unlist(urn_sizeXchange_squared_error[9,-c(1,2)])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[10,-c(1,2)])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[11,-c(1,2)])), col = 4)
+
+plot(as.vector(unlist(urn_sizeXchange_squared_error[16,-c(1,2)])), type = "l", ylim = c(-0.01, 0.01), ylab = "MSE Difference", main = "Change = 0.001")
+lines(as.vector(unlist(urn_sizeXchange_squared_error[13,-c(1,2)])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[14,-c(1,2)])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[15,-c(1,2)])), col = 4)
+
+plot(as.vector(unlist(urn_sizeXchange_squared_error[20,-c(1,2)])), type = "l", ylim = c(-0.005, 0.005), ylab = "MSE Difference", col = rgb(0,0,0, alpha = 0.7))
+lines(as.vector(unlist(urn_sizeXchange_squared_error[17,-c(1,2)])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[18,-c(1,2)])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[19,-c(1,2)])), col = 4)
+lines(rep(0,times = 500), col = 1, lty = "dotted")
+
+
+
 #cumulative coverage based results
-urn_sizeXchange = linear_coverage %>%
+urn_sizeXchange = sim2_linear %>%
   group_by(player_urn_size, amount_of_change) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
   select(amount_of_change, player_urn_size,starts_with("coverage")) %>%
@@ -264,6 +445,41 @@ plot(as.vector(unlist(urn_sizeXchange[20,-c(1,2)])), type = "l", ylim = c(0.9, 1
 lines(as.vector(unlist(urn_sizeXchange[17,-c(1,2)])), col = 2)
 lines(as.vector(unlist(urn_sizeXchange[18,-c(1,2)])), col = 3)
 lines(as.vector(unlist(urn_sizeXchange[19,-c(1,2)])), col = 4)
+
+b_urn_sizeXchange = baseline_coverage %>%
+  group_by(player_urn_size, amount_of_change) %>%
+  summarise(across(starts_with("coverage"), ~ mean(.))) %>%
+  select(amount_of_change, player_urn_size,starts_with("coverage")) %>%
+  arrange(amount_of_change)
+
+urn_sizeXchange_squared_error = urn_sizeXchange[,-c(1,2)] - b_urn_sizeXchange[,-c(1,2)]
+
+###difference
+plot(as.vector(unlist(urn_sizeXchange_squared_error[4,])), type = "l", ylim = c(-0.05, 0.05), ylab = "Coverage Difference")
+lines(as.vector(unlist(urn_sizeXchange_squared_error[1,])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[2,])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[3,])), col = 4)
+
+plot(as.vector(unlist(urn_sizeXchange_squared_error[8,])), type = "l", ylim = c(-0.05, 0.05), ylab = "MSE", main = "Change = 0")
+lines(as.vector(unlist(urn_sizeXchange_squared_error[5,])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[6,])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[7,])), col = 4)
+
+plot(as.vector(unlist(urn_sizeXchange_squared_error[12,])), type = "l", ylim = c(-0.05, 0.05), ylab = "MSE", main = "Change = 0.0005")
+lines(as.vector(unlist(urn_sizeXchange_squared_error[9,])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[10,])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[11,])), col = 4)
+
+plot(as.vector(unlist(urn_sizeXchange_squared_error[16,])), type = "l", ylim = c(-0.05, 0.05), ylab = "MSE", main = "Change = 0.001")
+lines(as.vector(unlist(urn_sizeXchange_squared_error[13,])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[14,])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[15,])), col = 4)
+
+plot(as.vector(unlist(urn_sizeXchange_squared_error[20,])), type = "l", ylim = c(-0.05, 0.05), ylab = "Coverage Difference")
+lines(as.vector(unlist(urn_sizeXchange_squared_error[17,])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[18,])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange_squared_error[19,])), col = 4)
+
 
 ################################################################################
 #urn sizes and change amount per adaptivity
@@ -350,7 +566,7 @@ lines(as.vector(unlist(urn_sizeXchange[18,-c(1,2)])), col = 3)
 lines(as.vector(unlist(urn_sizeXchange[19,-c(1,2)])), col = 4)
 
 #cumulative coverage based results
-urn_sizeXchange = linear_coverage %>%
+urn_sizeXchange = sim2_linear %>%
   filter(adapt == "adaptive_sigma", ) %>%
   group_by(player_urn_size, amount_of_change) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
@@ -386,7 +602,7 @@ lines(as.vector(unlist(urn_sizeXchange[19,-c(1,2)])), col = 4)
 #adaptivity and distribution type
 ################################################################################
 #cumulative coverage based results
-adaptXdist_type = linear_coverage %>%
+adaptXdist_type = sim2_linear %>%
   group_by(adapt, dist_type) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
   select(dist_type, adapt, starts_with("coverage")) %>%
@@ -406,6 +622,19 @@ plot(as.vector(unlist(adaptXdist_type[12,-c(1,2)])), type = "l", ylim = c(0.9, 1
 lines(as.vector(unlist(adaptXdist_type[9,-c(1,2)])), col = 2)
 lines(as.vector(unlist(adaptXdist_type[10,-c(1,2)])), col = 3)
 lines(as.vector(unlist(adaptXdist_type[11,-c(1,2)])), col = 4)
+
+b_adaptXdist_type = baseline_coverage %>%
+  group_by(adapt, dist_type) %>%
+  summarise(across(starts_with("coverage"), ~ mean(.))) %>%
+  select(dist_type, adapt, starts_with("coverage")) %>%
+  arrange(dist_type)
+
+adaptXdist_type_error = adaptXdist_type[, -c(1,2)] -  b_adaptXdist_type[, -c(1,2)]
+
+plot(as.vector(unlist(adaptXdist_type_error[12,-c(1,2)])), type = "l", ylim = c(-0.05, 0.05), ylab = "MSE")
+lines(as.vector(unlist(adaptXdist_type_error[9,-c(1,2)])), col = 2)
+lines(as.vector(unlist(adaptXdist_type_error[10,-c(1,2)])), col = 3)
+lines(as.vector(unlist(adaptXdist_type_error[11,-c(1,2)])), col = 4)
 
 #mse based results
 adaptXdist_type = linear_mse %>%
@@ -475,32 +704,15 @@ rm(discrete_mse_helper)
 ################################################################################
 #calculating coverage
 ################################################################################
-cumulative_coverage = function(X){
-  container = matrix(0, nrow=nrow(X), ncol = ncol(X))
-  container[,1] = X[,1]
-  for(i in 2:ncol(X)){
-    container[,i] = rowSums(X[,1:i]) / i
-    print(i)
-  }
-  return(container)
-  
-}
-
 covered = rowMeans(sim2_discrete %>% select(starts_with("coverage")))
 sim2_discrete = cbind(sim2_discrete, covered)
 colnames(sim2_discrete)[1007] = "covered"
-
-discrete_coverage_helper = cumulative_coverage(sim2_discrete %>% select(starts_with("coverage")))
-
-discrete_coverage = sim2_discrete %>% select(-starts_with("iter")) 
-discrete_coverage[,7:506] = discrete_coverage_helper
-rm(discrete_coverage_helper,covered)
 
 
 ################################################################################
 #main effect of adaptivity
 ################################################################################
-adapt_me = discrete_coverage %>%
+adapt_me = sim2_discrete %>%
   group_by(adapt) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
   select(adapt,starts_with("coverage"))
@@ -525,7 +737,7 @@ lines(as.vector(unlist(adapt_me[2,-c(1,2)])), col = 4)
 ################################################################################
 #main effect of urn size
 ################################################################################
-urn_size_me = discrete_coverage %>%
+urn_size_me = sim2_discrete %>%
   group_by(player_urn_size) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
   select(player_urn_size,starts_with("coverage"))
@@ -550,7 +762,7 @@ lines(as.vector(unlist(urn_size_me[3,-c(1,2)])), col = 4)
 ################################################################################
 #main effect of amount of change
 ################################################################################
-change_me = discrete_coverage %>%
+change_me = sim2_discrete %>%
   group_by(amount_of_change) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
   select(amount_of_change,starts_with("coverage"))
@@ -577,7 +789,7 @@ lines(as.vector(unlist(change_me[5,-c(1,2)])), col = 5)
 ################################################################################
 #main effect of distribution type
 ################################################################################
-dist_me = discrete_coverage %>%
+dist_me = sim2_discrete %>%
   group_by(dist_type) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
   select(dist_type,starts_with("coverage"))
@@ -635,39 +847,40 @@ urn_sizeXchange = discrete_mse %>%
   select(amount_of_change, player_urn_size,starts_with("iter")) %>%
   arrange(amount_of_change)
 
-plot(as.vector(unlist(urn_sizeXchange[4,-c(1,2)])), type = "l", ylim = c(0, 0.03), ylab = "MSE", main = "Change = -0.001")
-lines(as.vector(unlist(urn_sizeXchange[1,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urn_sizeXchange[2,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urn_sizeXchange[3,-c(1,2)])), col = 4)
+plot(as.vector(unlist(urn_sizeXchange[4,-c(1,2,502)])), type = "l", ylim = c(0, 0.08), ylab = "MSE", main = "Change = -0.001")
+lines(as.vector(unlist(urn_sizeXchange[1,-c(1,2,502)])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange[2,-c(1,2,502)])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange[3,-c(1,2,502)])), col = 4)
 
-plot(as.vector(unlist(urn_sizeXchange[8,-c(1,2)])), type = "l", ylim = c(0, 0.03), ylab = "MSE", main = "Change = 0")
-lines(as.vector(unlist(urn_sizeXchange[5,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urn_sizeXchange[6,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urn_sizeXchange[7,-c(1,2)])), col = 4)
+plot(as.vector(unlist(urn_sizeXchange[8,-c(1,2,502)])), type = "l", ylim = c(0, 0.08), ylab = "MSE", main = "Change = 0")
+lines(as.vector(unlist(urn_sizeXchange[5,-c(1,2,502)])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange[6,-c(1,2,502)])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange[7,-c(1,2,502)])), col = 4)
 
-plot(as.vector(unlist(urn_sizeXchange[12,-c(1,2)])), type = "l", ylim = c(0, 0.03), ylab = "MSE", main = "Change = 0.0005")
-lines(as.vector(unlist(urn_sizeXchange[9,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urn_sizeXchange[10,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urn_sizeXchange[11,-c(1,2)])), col = 4)
+plot(as.vector(unlist(urn_sizeXchange[12,-c(1,2,502)])), type = "l", ylim = c(0, 0.08), ylab = "MSE", main = "Change = 0.0005")
+lines(as.vector(unlist(urn_sizeXchange[9,-c(1,2,502)])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange[10,-c(1,2,502)])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange[11,-c(1,2,502)])), col = 4)
 
-plot(as.vector(unlist(urn_sizeXchange[16,-c(1,2)])), type = "l", ylim = c(0, 0.03), ylab = "MSE", main = "Change = 0.001")
-lines(as.vector(unlist(urn_sizeXchange[13,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urn_sizeXchange[14,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urn_sizeXchange[15,-c(1,2)])), col = 4)
+plot(as.vector(unlist(urn_sizeXchange[16,-c(1,2,502)])), type = "l", ylim = c(0, 0.08), ylab = "MSE", main = "Change = 0.001")
+lines(as.vector(unlist(urn_sizeXchange[13,-c(1,2,502)])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange[14,-c(1,2,502)])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange[15,-c(1,2,502)])), col = 4)
 
-plot(as.vector(unlist(urn_sizeXchange[20,-c(1,2)])), type = "l", ylim = c(0, 0.03), ylab = "MSE", main = "Change = 0.002")
-lines(as.vector(unlist(urn_sizeXchange[17,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urn_sizeXchange[18,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urn_sizeXchange[19,-c(1,2)])), col = 4)
+plot(as.vector(unlist(urn_sizeXchange[20,-c(1,2,501:502)])), type = "l", ylim = c(0, 0.08), ylab = "MSE")
+lines(as.vector(unlist(urn_sizeXchange[17,-c(1,2,501:502)])), col = 2)
+lines(as.vector(unlist(urn_sizeXchange[18,-c(1,2,501:502)])), col = 3)
+lines(as.vector(unlist(urn_sizeXchange[19,-c(1,2,501:502)])), col = 4)
 
+urn_sizeXchange[1,494:502]
 #cumulative coverage based results
-urn_sizeXchange = discrete_coverage %>%
+urn_sizeXchange = sim2_discrete %>%
   group_by(player_urn_size, amount_of_change) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
   select(amount_of_change, player_urn_size,starts_with("coverage")) %>%
   arrange(amount_of_change)
 
-plot(as.vector(unlist(urn_sizeXchange[4,-c(1,2)])), type = "l", ylim = c(0.8, 1), ylab = "MSE", main = "Change = -0.001")
+plot(as.vector(unlist(urn_sizeXchange[4,-c(1,2)])), type = "l", ylim = c(0, 1), ylab = "MSE", main = "Change = -0.001")
 lines(as.vector(unlist(urn_sizeXchange[1,-c(1,2)])), col = 2)
 lines(as.vector(unlist(urn_sizeXchange[2,-c(1,2)])), col = 3)
 lines(as.vector(unlist(urn_sizeXchange[3,-c(1,2)])), col = 4)
@@ -682,12 +895,12 @@ lines(as.vector(unlist(urn_sizeXchange[9,-c(1,2)])), col = 2)
 lines(as.vector(unlist(urn_sizeXchange[10,-c(1,2)])), col = 3)
 lines(as.vector(unlist(urn_sizeXchange[11,-c(1,2)])), col = 4)
 
-plot(as.vector(unlist(urn_sizeXchange[16,-c(1,2)])), type = "l", ylim = c(0.8, 1), ylab = "MSE", main = "Change = 0.001")
+plot(as.vector(unlist(urn_sizeXchange[16,-c(1,2)])), type = "l", ylim = c(0, 1), ylab = "MSE", main = "Change = 0.001")
 lines(as.vector(unlist(urn_sizeXchange[13,-c(1,2)])), col = 2)
 lines(as.vector(unlist(urn_sizeXchange[14,-c(1,2)])), col = 3)
 lines(as.vector(unlist(urn_sizeXchange[15,-c(1,2)])), col = 4)
 
-plot(as.vector(unlist(urn_sizeXchange[20,-c(1,2)])), type = "l", ylim = c(0.8, 1), ylab = "MSE", main = "Change = 0.002")
+plot(as.vector(unlist(urn_sizeXchange[20,-c(1,2)])), type = "l", ylim = c(0, 1), ylab = "Coverage")
 lines(as.vector(unlist(urn_sizeXchange[17,-c(1,2)])), col = 2)
 lines(as.vector(unlist(urn_sizeXchange[18,-c(1,2)])), col = 3)
 lines(as.vector(unlist(urn_sizeXchange[19,-c(1,2)])), col = 4)
@@ -777,7 +990,7 @@ lines(as.vector(unlist(urn_sizeXchange[18,-c(1,2)])), col = 3)
 lines(as.vector(unlist(urn_sizeXchange[19,-c(1,2)])), col = 4)
 
 #cumulative coverage based results
-urn_sizeXchange = discrete_coverage %>%
+urn_sizeXchange = sim2_discrete %>%
   filter(adapt == "adaptive50", ) %>%
   group_by(player_urn_size, amount_of_change) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
@@ -811,23 +1024,23 @@ lines(as.vector(unlist(urn_sizeXchange[19,-c(1,2)])), col = 4)
 
 
 #cumulative coverage based results
-adaptXdist_type = discrete_coverage %>%
+adaptXdist_type = sim2_discrete %>%
   group_by(adapt, dist_type) %>%
   summarise(across(starts_with("coverage"), ~ mean(.))) %>%
   select(dist_type, adapt, starts_with("coverage")) %>%
   arrange(dist_type)
 
-plot(as.vector(unlist(adaptXdist_type[4,-c(1,2)])), type = "l", ylim = c(0.9, 1), ylab = "MSE", main = "Better")
+plot(as.vector(unlist(adaptXdist_type[4,-c(1,2)])), type = "l", ylim = c(0, 1), ylab = "MSE", main = "Better")
 lines(as.vector(unlist(adaptXdist_type[1,-c(1,2)])), col = 2)
 lines(as.vector(unlist(adaptXdist_type[2,-c(1,2)])), col = 3)
 lines(as.vector(unlist(adaptXdist_type[3,-c(1,2)])), col = 4)
 
-plot(as.vector(unlist(adaptXdist_type[8,-c(1,2)])), type = "l", ylim = c(0.9, 1), ylab = "MSE", main = "Central")
+plot(as.vector(unlist(adaptXdist_type[8,-c(1,2)])), type = "l", ylim = c(0, 1), ylab = "MSE", main = "Central")
 lines(as.vector(unlist(adaptXdist_type[5,-c(1,2)])), col = 2)
 lines(as.vector(unlist(adaptXdist_type[6,-c(1,2)])), col = 3)
 lines(as.vector(unlist(adaptXdist_type[7,-c(1,2)])), col = 4)
 
-plot(as.vector(unlist(adaptXdist_type[12,-c(1,2)])), type = "l", ylim = c(0.9, 1), ylab = "MSE", main = "Worse")
+plot(as.vector(unlist(adaptXdist_type[12,-c(1,2)])), type = "l", ylim = c(0, 1), ylab = "MSE", main = "Worse")
 lines(as.vector(unlist(adaptXdist_type[9,-c(1,2)])), col = 2)
 lines(as.vector(unlist(adaptXdist_type[10,-c(1,2)])), col = 3)
 lines(as.vector(unlist(adaptXdist_type[11,-c(1,2)])), col = 4)

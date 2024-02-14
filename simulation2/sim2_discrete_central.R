@@ -11,6 +11,7 @@ nitems = 1000
 #true values
 pi_pl = qnorm(seq(1/(nplayers+1),nplayers/(nplayers+1),length=nplayers))
 pi_pl = exp(pi_pl) / (1 + exp(pi_pl)) 
+pi_pl = sample(pi_pl, length(pi_pl), replace = FALSE)
 pi_it = pi_it = qnorm(seq(1/(nitems+1),nitems/(nitems+1),length=nitems))
 pi_it = exp(pi_it) / (1 + exp(pi_it)) 
 pi_it = sort(pi_it)
@@ -31,20 +32,20 @@ player_urn_sizes  =  c(8,16,32,64)
 #item starting
 r_it = numeric(nitems)
 first_half = unlist(lapply(pi_it[1:500], rbinom, n = 1, size = 64))
-second_half = 64 - first_half
+second_half = 64 - rev(first_half)
 r_it = c(first_half, second_half)
 
 #change
 #discrete positive
-logit_changes = c(-0.5, 0, 0.25, 0.5, 1)
-change_per_jump = rep(logit_changes, times = 900)
+logit_changes = c(-0.5, 0, 0.5, 1,2)
+change_per_jump = rep(logit_changes / 25, times = 900)
 jump_matrix = matrix(0, nrow = nplayers, ncol = ngames)
-jump_matrix[,250] = rep(1, times = nplayers)
+jump_matrix[,seq(21,481,20)] = rep(1, times = nplayers)
 
 change_matrix = matrix(0, nrow = nplayers, ncol = ngames)
-change_matrix[,1] = log(pi_pl / (1-pi_pl))
+change_matrix[,1] = log(pi_pl / (1-pi_pl)) + change_per_jump
 for(i in 2:ngames){
-  change_matrix[,i] = change_matrix[,i-1] + jump_matrix[,i-1] * change_per_jump
+  change_matrix[,i] = change_matrix[,i-1] + jump_matrix[,i] * change_per_jump
 }
 
 change_matrix = exp(change_matrix) / (1 + exp(change_matrix))
@@ -109,5 +110,5 @@ for(pus in player_urn_sizes){ #4
   }
 }
 
-saveRDS(results, "sim2_discrete_1jump_central.rds")
+saveRDS(results, "sim2_discrete_central_25.rds")
 

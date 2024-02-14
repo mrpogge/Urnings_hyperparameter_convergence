@@ -16,7 +16,8 @@ urnings_game = function(player_urnings,
                         mu = 0.5,
                         sigma = 2,
                         change = FALSE,
-                        coverage = FALSE){
+                        coverage = FALSE,
+                        save_item_urnings = FALSE){
   #selecting alg_type function
   algo = switch(
     alg_type,
@@ -68,7 +69,8 @@ urnings_game = function(player_urnings,
                             mu = mu,
                             sigma = sigma,
                             change = change,
-                            coverage = coverage)
+                            coverage = coverage,
+                            save_item_urnings = save_item_urnings)
   class(selected_functions) = "game_type"
   
   return(selected_functions)
@@ -93,6 +95,7 @@ source("urnings_function.R")
                            sigma = game_type[["sigma"]],
                            change = game_type[["change"]],
                            coverage = game_type[["coverage"]],
+                           save_item_urnings = game_type[["save_item_urnings"]],
                            omit_message = omit_message)
   return(game)
 }
