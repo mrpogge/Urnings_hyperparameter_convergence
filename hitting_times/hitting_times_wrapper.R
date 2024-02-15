@@ -13,6 +13,7 @@ hitting_times = function(student_starting,
                          m_adapt = 0.5,
                          sd_adapt = 0.1,
                          paired = 1,
+                         mse_baseline = NULL,
                          returns = "simple",
                          OS = "MAC"){
   ################################################################################  
@@ -45,9 +46,9 @@ hitting_times = function(student_starting,
   #loading the right compiled version of the C file 
   ################################################################################
   switch (OS,
-          "MAC" = dyn.load("CRT.so"),
-          "WINDOWS" = dyn.load("CRT.dll"),
-          "LINUX" = dyn.load("CRT.o")
+          "MAC" = dyn.load("hitting_times.so"),
+          "WINDOWS" = dyn.load("hitting_times.dll"),
+          "LINUX" = dyn.load("hitting_times.o")
   )
   
   ################################################################################  
@@ -60,18 +61,14 @@ hitting_times = function(student_starting,
   ################################################################################
   Upd=t(matrix(c(0,1,1,0),nrow=2))
   n_options=c(0,1,2)
-  Score=c(-1,1)*weight
+  Score=c(-1,1)
   n_scores=2
   queue = rep(0,n_items)
   LL=rep(0,n_scores*n_items)
   LLsum=rep(0,n_scores)
   
-  ################################################################################
-  #create helpers for the paired update
-  ################################################################################
-  student_container=matrix(0,ncol=n_games,nrow=n_students)
-  item_container=matrix(0,ncol=n_games,nrow=n_items)
-  
+  HT = 0
+  MSE = (student_starting/student_urn_size - Theta)^2
   ################################################################################
   #call the C function to perform the simulation
   ################################################################################
@@ -85,26 +82,26 @@ hitting_times = function(student_starting,
           as.integer(n_students), #number of students
           as.integer(n_items), #number of items
           as.integer(n_games), #number of games
-          as.integer(student_container), #container for students
-          as.integer(item_container), #containers for items
           as.integer(student_urn_size), # urn size for students
           as.integer(item_urn_size), #urn sizes for items
           as.double(Prob2), #normal kernel matrix
           as.double(rep(0,n_items+1)), #no idea, but probably a helper for calculating the normalising constant
-          as.integer(weight), #weights
           as.integer(Score), #possible updates
           as.integer(n_scores), #number of possible updates other than 0
           as.integer(n_options), #number of possible updates as a vector? 
           as.integer(Upd), #helper for the paired update I guess
           as.integer(queue), #queue for the paired update
           as.integer(LL), #helpers for the paired update again
-          as.integer(LLsum))#and again
+          as.integer(LLsum),
+          as.double(MSE),
+          as.double(mse_baseline),
+          as.integer(HT))#and again
   
   ################################################################################
   #returning the results
   ################################################################################
   if(returns == "simple"){
-    U=matrix(tmp[[10]],ncol=n_games)
+    U=tmp[[23]]
     return(U)
   } else {
     return(tmp)
