@@ -1,12 +1,13 @@
 library(tidyverse)
 library(grid)
+library(patchwork)
 
 ################################################################################
 #simulation with linear change
 ################################################################################
-sim2_linear_better = readRDS("sim2_linear_better.rds")
-sim2_linear_worse = readRDS("sim2_linear_worse.rds")
-sim2_linear_central = readRDS("sim2_linear_central.rds")
+sim2_linear_better = readRDS("output/sim2_linear_better.rds")
+sim2_linear_worse = readRDS("output/sim2_linear_worse.rds")
+sim2_linear_central = readRDS("output/sim2_linear_central.rds")
 
 better_label = data.frame("dist_type" = rep("better", times = nrow(sim2_linear_better)))
 worse_label = data.frame("dist_type" = rep("worse", times = nrow(sim2_linear_worse)))
@@ -44,13 +45,6 @@ linear_mse = sim2_linear %>% select(-starts_with("coverage"))
 linear_mse[,7:506] = linear_mse_helper
 rm(linear_mse_helper)
 
-
-
-#mMSE_total = data.frame("mMSE" = c(mMSE_l, mMSE_d10, mMSE_d25),
-#                           "type" = rep(c("l", "d10", "d25"), each = length(mMSE_l)))
-
-#kruskal.test(mMSE~type, mMSE_total)
-#conover.test(mMSE_total[,"mMSE"], as.factor(mMSE_total[,"type"]))
 ################################################################################
 #Main effect change
 ################################################################################
@@ -60,22 +54,45 @@ change_me = sim2_linear %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(amount_of_change,starts_with("iter"))
 
-plot(as.vector(unlist(change_me[1,-c(1)])), type = "l", ylim = c(0.35, 0.85), ylab = "Mean Estimate")
-lines(as.vector(unlist(change_me[2,-c(1)])), col = 2)
-lines(as.vector(unlist(change_me[3,-c(1)])), col = 3)
-lines(as.vector(unlist(change_me[4,-c(1)])), col = 4)
-lines(as.vector(unlist(change_me[5,-c(1)])), col = 5)
-
 true_change_me = change_matrix_avg %>%
   group_by(amount_of_change) %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(amount_of_change,starts_with("iter"))
 
-lines(as.vector(unlist(true_change_me[1,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(true_change_me[2,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(true_change_me[3,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(true_change_me[4,-c(1,2)])), col = 4, lty = "dotted")
-lines(as.vector(unlist(true_change_me[5,-c(1,2)])), col = 5, lty = "dotted")
+df_h21 = rbind(change_me, true_change_me) %>%
+  ungroup() %>%
+  mutate(res_type = c(rep("a", times = nrow(change_me)),
+                      rep("b", times = nrow(true_change_me)))) %>%
+  relocate(res_type, .before = 1) %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable))) %>%
+  mutate(amount_of_change = as.character(amount_of_change))
+
+df_h21$amount_of_change = factor(df_h21$amount_of_change,
+                                levels = c("-0.001", "0", "0.001", "0.002", "0.004"),
+                                labels = c("-0.5", "0", "0.5", "1", "2"))
+
+plot_h21 = df_h21 %>%
+  ggplot(aes(x = variable, y = value, color = amount_of_change, linetype = res_type)) +
+  geom_line() +
+  labs(x = "Iterations", y = "Mean Ratings") +
+  scale_linetype_manual(values = c("a" = "solid", "b" = "dotted"),
+                        name = "",
+                        labels = c("Ratings", "True")) +
+  scale_color_manual(values = c("-0.5" = "black",
+                                "0" = "red",
+                                "0.5" = "green",
+                                "1" = "blue",
+                                "2" = "purple"),
+                     name = "Student urn sizes") +
+  guides(color = guide_legend(order = 2),
+         linetype = guide_legend(order = 1)) + 
+  jtools::theme_apa(legend.font.size = 10) 
+
+
+
 
 ################################################################################
 #Interaction between urn sizes and change
@@ -222,7 +239,7 @@ lines(as.vector(unlist(true_changeXadapt[15,-c(1,2)])), col = 5, lty = "dotted")
 ################################################################################
 # this is the analysis we are looking for
 changeXdist = sim2_linear %>%
-  filter(adapt == "n_adaptive") %>%
+  filter(adapt == "adaptive70") %>%
   group_by(dist_type, amount_of_change) %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(dist_type, amount_of_change, starts_with("iter"))
@@ -232,52 +249,49 @@ true_changeXdist = change_matrix_avg %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(dist_type, amount_of_change, starts_with("iter"))
 
-layout(matrix(c(1,2,3), 1, 3, byrow = TRUE))
 
+df_h22 = rbind(changeXdist, true_changeXdist) %>%
+  ungroup() %>%
+  mutate(res_type = c(rep("a", times = nrow(changeXdist)),
+                      rep("b", times = nrow(true_changeXdist)))) %>%
+  relocate(res_type, .before = 1) %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable)))
 
-plot(as.vector(unlist(changeXdist[1,-c(1,2)])), type = "l", ylim = c(0, 1), ylab = "Mean Estimate", main = "N(1,1)")
-lines(as.vector(unlist(changeXdist[2,-c(1,2)])), col = 2)
-lines(as.vector(unlist(changeXdist[3,-c(1,2)])), col = 3)
-lines(as.vector(unlist(changeXdist[4,-c(1,2)])), col = 4)
-lines(as.vector(unlist(changeXdist[5,-c(1,2)])), col = 5)
+df_h22$dist_type = factor(df_h22$dist_type,
+                          levels = c("better","central", "worse"),
+                          labels = c("N(1,1)", "N(0,1)", "N(-1,1)"))
 
-lines(as.vector(unlist(true_changeXdist[1,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(true_changeXdist[2,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(true_changeXdist[3,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(true_changeXdist[4,-c(1,2)])), col = 4, lty = "dotted")
-lines(as.vector(unlist(true_changeXdist[5,-c(1,2)])), col = 5, lty = "dotted")
+df_h22$amount_of_change = factor(df_h22$amount_of_change,
+                                 levels = c("-0.001", "0", "0.001", "0.002", "0.004"),
+                                 labels = c("-0.5", "0", "0.5", "1", "2"))
 
+df_h22 %>%
+  ggplot(aes(x = variable, y = value, color = amount_of_change, linetype = res_type)) +
+  facet_wrap(dist_type ~ ., nrow = 1) +
+  geom_line() +
+  labs(x = "Iterations", y = "Mean Ratings") +
+  scale_linetype_manual(values = c("a" = "solid", "b" = "dotted"),
+                        name = "",
+                        labels = c("Ratings", "True")) +
+  scale_color_manual(values = c("-0.5" = "black",
+                                "0" = "red",
+                                "0.5" = "green",
+                                "1" = "blue",
+                                "2" = "purple"),
+                     name = "Student urn sizes") +
+  guides(color = guide_legend(order = 2),
+         linetype = guide_legend(order = 1)) + 
+  jtools::theme_apa(legend.font.size = 10) 
 
-plot(as.vector(unlist(changeXdist[6,-c(1,2)])), type = "l", ylim = c(0, 1), ylab = "Mean Estimate", main = "N(0,1)")
-lines(as.vector(unlist(changeXdist[7,-c(1,2)])), col = 2)
-lines(as.vector(unlist(changeXdist[8,-c(1,2)])), col = 3)
-lines(as.vector(unlist(changeXdist[9,-c(1,2)])), col = 4)
-lines(as.vector(unlist(changeXdist[10,-c(1,2)])), col = 5)
-
-lines(as.vector(unlist(true_changeXdist[6,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(true_changeXdist[7,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(true_changeXdist[8,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(true_changeXdist[9,-c(1,2)])), col = 4, lty = "dotted")
-lines(as.vector(unlist(true_changeXdist[10,-c(1,2)])), col = 5, lty = "dotted")
-
-
-plot(as.vector(unlist(changeXdist[11,-c(1,2)])), type = "l", ylim = c(0, 1), ylab = "Mean Estimate", main = "N(-1,1)")
-lines(as.vector(unlist(changeXdist[12,-c(1,2)])), col = 2)
-lines(as.vector(unlist(changeXdist[13,-c(1,2)])), col = 3)
-lines(as.vector(unlist(changeXdist[14,-c(1,2)])), col = 4)
-lines(as.vector(unlist(changeXdist[15,-c(1,2)])), col = 5)
-
-lines(as.vector(unlist(true_changeXdist[11,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(true_changeXdist[12,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(true_changeXdist[13,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(true_changeXdist[14,-c(1,2)])), col = 4, lty = "dotted")
-lines(as.vector(unlist(true_changeXdist[15,-c(1,2)])), col = 5, lty = "dotted")
 
 ################################################################################
 #deviation from the baseline
 ################################################################################
 layout(matrix(c(1), 1, 1, byrow = TRUE))
-baseline_linear = readRDS("sim2_baseline.rds")
+baseline_linear = readRDS("output/sim2_baseline.rds")
 
 baseline_linear = baseline_linear / as.numeric(sim2_linear[,2])
 baseline_linear = (baseline_linear - change_matrix_linear) ^ 2
@@ -288,9 +302,9 @@ colnames(baseline_linear) = c(colnames(sim2_linear[,1:6]), paste0("iter", c(1:50
 ################################################################################
 #simulation with linear change
 ################################################################################
-post_hoc_urnsize = readRDS("post_hoc_urnsize.rds")
-post_hoc_urnsize_better = readRDS("post_hoc_urnsize_better.rds")
-post_hoc_urnsize_worse = readRDS("post_hoc_urnsize_worse.rds")
+post_hoc_urnsize = readRDS("output/post_hoc_urnsize.rds")
+post_hoc_urnsize_better = readRDS("output/post_hoc_urnsize_better.rds")
+post_hoc_urnsize_worse = readRDS("output/post_hoc_urnsize_worse.rds")
 
 post_hoc_urnsize = cbind(rep(c("better", "central", "worse"), each = 72000),
                          rbind(post_hoc_urnsize_better, post_hoc_urnsize, post_hoc_urnsize_worse))
@@ -319,7 +333,7 @@ rm(post_hoc_helper)
 ################################################################################
 #baseline post_hoc urn sizes
 ################################################################################
-baseline_post_hoc = readRDS("post_hoc_urnsize_baseline.rds")
+baseline_post_hoc = readRDS("output/post_hoc_urnsize_baseline.rds")
 baseline_post_hoc = baseline_post_hoc / as.numeric(post_hoc_urnsize[,2])
 baseline_post_hoc = (baseline_post_hoc - change_matrix_ph) ^ 2
 baseline_post_hoc = cbind(post_hoc_urnsize[,1:6], baseline_post_hoc)
@@ -349,27 +363,64 @@ b_post_hoc_me = baseline_post_hoc %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(player_urn_size,starts_with("iter"))
 
-urn_size_difference = urn_size_me[,-1] - b_urn_size_me[,-1]
-post_hoc_difference = post_hoc_me[,-1] - b_post_hoc_me[,-1]
+urn_size_difference = as_tibble(cbind(urn_size_me[,1], urn_size_me[,-1] - b_urn_size_me[,-1]))
+post_hoc_difference = as_tibble(cbind(post_hoc_me[,1], post_hoc_me[,-1] - b_post_hoc_me[,-1]))
 
-layout(matrix(c(1,2), 1, 2, byrow = TRUE))
-plot(as.vector(unlist(urn_size_difference[4,])), type = "l", ylim = c(-0.001, 0.004), ylab = "MSE Difference")
-lines(as.vector(unlist(urn_size_difference[1,])), col = 2)
-lines(as.vector(unlist(urn_size_difference[2,])), col = 3)
-lines(as.vector(unlist(urn_size_difference[3,])), col = 4)
-lines(as.vector(unlist(post_hoc_difference[3,])), col = 5)
-lines(as.vector(unlist(post_hoc_difference[4,])), col = 6)
-lines(as.vector(unlist(post_hoc_difference[1,])), col = 7)
-lines(as.vector(unlist(post_hoc_difference[2,])), col = 8)
+df_h23 = rbind(urn_size_me, 
+               post_hoc_me) %>%
+  ungroup() %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable)))
 
-plot(as.vector(unlist(urn_size_me[4,-1])), type = "l", ylim = c(0, 0.025), ylab = "MSE")
-lines(as.vector(unlist(urn_size_me[1,-1])), col = 2)
-lines(as.vector(unlist(urn_size_me[2,-1])), col = 3)
-lines(as.vector(unlist(urn_size_me[3,-1])), col = 4)
-lines(as.vector(unlist(post_hoc_me[3,-1])), col = 5)
-lines(as.vector(unlist(post_hoc_me[4,-1])), col = 6)
-lines(as.vector(unlist(post_hoc_me[1,-1])), col = 7)
-lines(as.vector(unlist(post_hoc_me[2,-1])), col = 8)
+df_h23B = rbind(urn_size_difference, 
+               post_hoc_difference) %>%
+  ungroup() %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable)))
+
+df_h23$player_urn_size = factor(df_h23$player_urn_size,
+                          levels = c("8","16", "32", "64", "80", "96", "112", "128"),
+                          labels = c("8","16", "32", "64", "80", "96", "112", "128"))
+df_h23B$player_urn_size = factor(df_h23B$player_urn_size,
+                                levels = c("8","16", "32", "64", "80", "96", "112", "128"),
+                                labels = c("8","16", "32", "64", "80", "96", "112", "128"))
+
+plot_h23 = df_h23 %>%
+  ggplot(aes(x = variable, y = value, color = player_urn_size)) +
+  geom_line() +
+  labs(x = "Iterations", y = "MSE") +
+  scale_color_manual(values = c("8" = "black",
+                                "16" = "red",
+                                "32" = "green",
+                                "64" = "blue",
+                                "80" = "purple",
+                                "96" = "gold",
+                                "112" = "grey",
+                                "128" = "aquamarine3"),
+                     name = "Student urn sizes") +
+  jtools::theme_apa(legend.font.size = 10) 
+
+plot_h23B = df_h23B %>%
+  ggplot(aes(x = variable, y = value, color = player_urn_size)) +
+  geom_line() +
+  labs(x = "Iterations", y = "MSE Difference") +
+  scale_color_manual(values = c("8" = "black",
+                                "16" = "red",
+                                "32" = "green",
+                                "64" = "blue",
+                                "80" = "purple",
+                                "96" = "gold",
+                                "112" = "grey",
+                                "128" = "aquamarine3"),
+                     name = "Student urn sizes") +
+  jtools::theme_apa(legend.font.size = 10) 
+
+plot_h23 + plot_h23B + plot_layout(ncol = 2, guides = "collect")
+
 
 ################################################################################
 #baseline diff based on dist type and urn size
@@ -398,26 +449,63 @@ b_post_hoc_worse = baseline_post_hoc %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(player_urn_size,starts_with("iter"))
 
-urn_worse_difference = urn_size_worse[,-1] - b_urn_size_worse[,-1]
-post_hoc_worse_difference = post_hoc_worse[,-1] - b_post_hoc_worse[ ,-1]
+urn_worse_difference = cbind(urn_size_worse[,1], urn_size_worse[,-1] - b_urn_size_worse[,-1])
+post_hoc_worse_difference = cbind(post_hoc_worse[,1],post_hoc_worse[,-1] - b_post_hoc_worse[ ,-1])
   
-plot(as.vector(unlist(urn_worse_difference[4,])), type = "l", ylim = c(-0.001, 0.008), ylab = "MSE Difference")
-lines(as.vector(unlist(urn_worse_difference[1,])), col = 2)
-lines(as.vector(unlist(urn_worse_difference[2,])), col = 3)
-lines(as.vector(unlist(urn_worse_difference[3,])), col = 4)
-lines(as.vector(unlist(post_hoc_worse_difference[3,])), col = 5)
-lines(as.vector(unlist(post_hoc_worse_difference[4,])), col = 6)
-lines(as.vector(unlist(post_hoc_worse_difference[1,])), col = 7)
-lines(as.vector(unlist(post_hoc_worse_difference[2,])), col = 8)
+df_h23 = rbind(urn_size_worse, 
+               post_hoc_worse) %>%
+  ungroup() %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable)))
 
-plot(as.vector(unlist(urn_size_worse[4,-1])), type = "l", ylim = c(0, 0.025), ylab = "MSE")
-lines(as.vector(unlist(urn_size_worse[1,-1])), col = 2)
-lines(as.vector(unlist(urn_size_worse[2,-1])), col = 3)
-lines(as.vector(unlist(urn_size_worse[3,-1])), col = 4)
-lines(as.vector(unlist(post_hoc_worse[3,-1])), col = 5)
-lines(as.vector(unlist(post_hoc_worse[4,-1])), col = 6)
-lines(as.vector(unlist(post_hoc_worse[1,-1])), col = 7)
-lines(as.vector(unlist(post_hoc_worse[2,-1])), col = 8)
+df_h23B = rbind(urn_worse_difference, 
+                post_hoc_worse_difference) %>%
+  ungroup() %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable)))
+
+df_h23$player_urn_size = factor(df_h23$player_urn_size,
+                                levels = c("8","16", "32", "64", "80", "96", "112", "128"),
+                                labels = c("8","16", "32", "64", "80", "96", "112", "128"))
+df_h23B$player_urn_size = factor(df_h23B$player_urn_size,
+                                 levels = c("8","16", "32", "64", "80", "96", "112", "128"),
+                                 labels = c("8","16", "32", "64", "80", "96", "112", "128"))
+
+plot_h23 = df_h23 %>%
+  ggplot(aes(x = variable, y = value, color = player_urn_size)) +
+  geom_line() +
+  labs(x = "Iterations", y = "MSE") +
+  scale_color_manual(values = c("8" = "black",
+                                "16" = "red",
+                                "32" = "green",
+                                "64" = "blue",
+                                "80" = "purple",
+                                "96" = "gold",
+                                "112" = "grey",
+                                "128" = "aquamarine3"),
+                     name = "Student urn sizes") +
+  jtools::theme_apa(legend.font.size = 10) 
+
+plot_h23B = df_h23B %>%
+  ggplot(aes(x = variable, y = value, color = player_urn_size)) +
+  geom_line() +
+  labs(x = "Iterations", y = "MSE Difference") +
+  scale_color_manual(values = c("8" = "black",
+                                "16" = "red",
+                                "32" = "green",
+                                "64" = "blue",
+                                "80" = "purple",
+                                "96" = "gold",
+                                "112" = "grey",
+                                "128" = "aquamarine3"),
+                     name = "Student urn sizes") +
+  jtools::theme_apa(legend.font.size = 10) 
+
+plot_h23 + plot_h23B + plot_layout(ncol = 2, guides = "collect")
 
 ################################################################################
 #making tables

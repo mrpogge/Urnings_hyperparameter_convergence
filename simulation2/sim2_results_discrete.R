@@ -7,9 +7,9 @@ library(grid)
 ################################################################################
 #simulation with discrete change (10)
 ################################################################################
-sim2_discrete_better_10 = readRDS("sim2_discrete_better_10.rds")
-sim2_discrete_worse_10 = readRDS("sim2_discrete_worse_10.rds")
-sim2_discrete_central_10 = readRDS("sim2_discrete_central_10.rds")
+sim2_discrete_better_10 = readRDS("output/sim2_discrete_better_10.rds")
+sim2_discrete_worse_10 = readRDS("output/sim2_discrete_worse_10.rds")
+sim2_discrete_central_10 = readRDS("output/sim2_discrete_central_10.rds")
 
 better_label = data.frame("dist_type" = rep("better", times = nrow(sim2_discrete_better_10)))
 worse_label = data.frame("dist_type" = rep("worse", times = nrow(sim2_discrete_worse_10)))
@@ -57,27 +57,51 @@ change_me = sim2_discrete_10 %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(amount_of_change,starts_with("iter"))
 
-plot(as.vector(unlist(change_me[1,-c(1)])), type = "l", ylim = c(0.35, 0.85), ylab = "Mean Estimate")
-lines(as.vector(unlist(change_me[2,-c(1)])), col = 2)
-lines(as.vector(unlist(change_me[3,-c(1)])), col = 3)
-lines(as.vector(unlist(change_me[4,-c(1)])), col = 4)
-lines(as.vector(unlist(change_me[5,-c(1)])), col = 5)
-
 true_change_me = change_matrix_discrete_10_avg %>%
   group_by(amount_of_change) %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(amount_of_change,starts_with("iter"))
 
-lines(as.vector(unlist(true_change_me[1,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(true_change_me[2,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(true_change_me[3,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(true_change_me[4,-c(1,2)])), col = 4, lty = "dotted")
-lines(as.vector(unlist(true_change_me[5,-c(1,2)])), col = 5, lty = "dotted")
+df_h21 = rbind(change_me, true_change_me) %>%
+  ungroup() %>%
+  mutate(res_type = c(rep("a", times = nrow(change_me)),
+                      rep("b", times = nrow(true_change_me)))) %>%
+  relocate(res_type, .before = 1) %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable))) %>%
+  mutate(amount_of_change = as.character(amount_of_change))
+
+df_h21$amount_of_change = factor(df_h21$amount_of_change,
+                                 levels = c("-0.05", "0", "0.05", "0.1", "0.2"),
+                                 labels = c("-0.5", "0", "0.5", "1", "2"))
+
+plot_h21D = df_h21 %>%
+  ggplot(aes(x = variable, y = value, color = amount_of_change, linetype = res_type)) +
+  geom_line() +
+  labs(x = "Iterations", y = "") +
+  scale_linetype_manual(values = c("a" = "solid", "b" = "dotted"),
+                        name = "",
+                        labels = c("Ratings", "True")) +
+  scale_color_manual(values = c("-0.5" = "black",
+                                "0" = "red",
+                                "0.5" = "green",
+                                "1" = "blue",
+                                "2" = "purple"),
+                     name = "Student urn sizes") +
+  guides(color = guide_legend(order = 2),
+         linetype = guide_legend(order = 1)) + 
+  jtools::theme_apa(legend.font.size = 10) 
+
+#combine the two types of plots
+plot_h21 + plot_h21D + plot_layout(nrow = 1, guides = "collect")
+
 
 #0.018415879894 0.009243935401 0.002008811137 0.009497346354 0.020865252596
 #0.0120062
-d10_abs_difference = abs(change_me[,-1] - true_change_me[,-1])[,400:500]
-mean(rowMeans(d10_abs_difference))
+#d10_abs_difference = abs(change_me[,-1] - true_change_me[,-1])[,400:500]
+#mean(rowMeans(d10_abs_difference))
 
 
 ################################################################################

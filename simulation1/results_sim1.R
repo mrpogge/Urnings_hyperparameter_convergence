@@ -1,4 +1,5 @@
 library(tidyverse)
+library(patchwork)
 
 set.seed(13181913)
 
@@ -272,10 +273,10 @@ df_h13$item_urn_size = factor(df_h13$item_urn_size,
                               labels = c("16", "32", "64", "128"))
 
 
-df_h13 %>%
+plot_h13 = df_h13 %>%
   ggplot(aes(x = variable, y = value, color = item_urn_size, linetype = res_type)) +
   geom_line() +
-  labs(x = "Iterations", y = "MSE") +
+  labs(x = "", y = "MSE") +
   scale_linetype_manual(values = c("a" = "solid", "b" = "dotted"),
                         name = "",
                         labels = c("MSE", "baseline MSE")) +
@@ -283,7 +284,7 @@ df_h13 %>%
                                 "32" = "red",
                                 "64" = "green",
                                 "128" = "blue"),
-                     name = "") +
+                     name = "Item urn sizes") +
   jtools::theme_apa(legend.font.size = 10)
 
 ht_item_urnsizes = hitting_times %>%
@@ -353,7 +354,7 @@ df_h14$player_urn_size = factor(df_h14$player_urn_size,
                               levels = c("8", "16", "32", "64"),
                               labels = c("8", "16", "32", "64"))
 
-df_h14 %>%
+plot_h14 = df_h14 %>%
   ggplot(aes(x = variable, y = value, color = player_urn_size, linetype = res_type)) +
   geom_line() +
   labs(x = "Iterations", y = "MSE") +
@@ -364,8 +365,13 @@ df_h14 %>%
                                 "16" = "red",
                                 "32" = "green",
                                 "64" = "blue"),
-                     name = "") +
-  jtools::theme_apa(legend.font.size = 10)
+                     name = "Student urn sizes") +
+  guides(color = guide_legend(order = 2),
+         linetype = guide_legend(order = 1)) + 
+  jtools::theme_apa(legend.font.size = 10) 
+
+
+plot_h13 + plot_h14 + plot_layout(nrow = 2, guides = "auto")
 
 
 ht_player_urnsizes = hitting_times %>% 
