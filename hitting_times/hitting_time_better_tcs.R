@@ -62,10 +62,7 @@ for(i in 1:nrow(Design)){
     
     
     r_pl = numeric(length = nplayers) + as.integer(Design[i,1] / 2)
-    r_it = numeric(nitems)
-    first_half = unlist(lapply(exp(pi_it[1:(nitems/2)])/(1+exp(pi_it[1:(nitems/2)])), rbinom, n = 1, size = as.numeric(Design[i,2])))
-    second_half = as.numeric(Design[i,2]) - rev(first_half)
-    r_it = c(first_half, second_half)
+    r_it = numeric(nitems) + as.integer(Design[i,2] / 2)
     r_pl = r_pl[indexing]
     
     Theta = matrix(rep(pi_pl, times = ngames), ncol = ngames, nrow = nplayers, byrow = TRUE)
@@ -94,7 +91,7 @@ for(i in 1:nrow(Design)){
     #saving results
     #creating fix cols
     dist_type = switch(as.character(Design[i,3]), "1" = "better", "0" = "central", "-1" = "worse")
-    params = c(Design[i,1],Design[i,2],ad_name[Design[i,4]], 100, "Urnings2",TRUE ,dist_type)
+    params = c(Design[i,1],Design[i,2],ad_name[Design[i,4]], 999, "Urnings2",TRUE ,dist_type)
     results[counter, 1:7] = params
     results[counter, r+7] = HTs
   }
@@ -102,6 +99,6 @@ for(i in 1:nrow(Design)){
   print(Design[i,])
 }
 
-           
 
-saveRDS(results, "output/ht_better.rds")
+
+saveRDS(results, "output/ht_better_tcs.rds")

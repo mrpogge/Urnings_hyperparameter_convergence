@@ -182,9 +182,8 @@ df_h11 %>%
   jtools::theme_apa(legend.font.size = 10)
 
 pu_ht =hitting_times %>%
-  filter(player_label == 1) %>%
   group_by(paired_update) %>%
-  summarise(median(ht, na.rm = TRUE)) 
+  summarise(mean(ht, na.rm = TRUE)) 
 
 hitting_times = hitting_times %>% filter(player_label == 1)
 
@@ -289,7 +288,7 @@ plot_h13 = df_h13 %>%
 
 ht_item_urnsizes = hitting_times %>%
   group_by(item_urn_size) %>%
-  summarise(across(starts_with("ht"), ~ median(., na.rm = TRUE))) %>%
+  summarise(across(starts_with("ht"), ~ mean(., na.rm = TRUE))) %>%
   select(item_urn_size,starts_with('ht')) %>%
   mutate_at(1, as.integer) %>%
   arrange(item_urn_size)
@@ -376,7 +375,7 @@ plot_h13 + plot_h14 + plot_layout(nrow = 2, guides = "auto")
 
 ht_player_urnsizes = hitting_times %>% 
   group_by(player_urn_size) %>%
-  summarise(across(starts_with("ht"), ~ median(., na.rm = TRUE))) %>%
+  summarise(across(starts_with("ht"), ~ mean(., na.rm = TRUE))) %>%
   select(player_urn_size,starts_with('ht')) %>%
   mutate_at(1, as.integer) %>%
   arrange(player_urn_size)
@@ -405,7 +404,7 @@ lines(as.vector(unlist(b_adapt[3,-1])), col = 4, lty = "dotted")
 
 ht_adapt = hitting_times %>% 
   group_by(adapt) %>%
-  summarise(across(starts_with("ht"), ~ median(., na.rm = TRUE))) %>%
+  summarise(across(starts_with("ht"), ~ mean(., na.rm = TRUE))) %>%
   select(adapt,starts_with('ht')) 
 
 ################################################################################

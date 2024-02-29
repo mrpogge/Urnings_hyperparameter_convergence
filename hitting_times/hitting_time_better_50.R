@@ -33,7 +33,7 @@ Design = expand.grid(player_urn_sizes, item_urn_sizes, true_mus, ad_index, pu)
 Design= Design[Design[,3] == 1, ]
 
 #baseline 975 quantile
-baseline_mse_total = readRDS("output/mse_baseline_975.rds")
+baseline_mse_total = readRDS("output/mse_baseline_975_50.rds")
 baseline_mse_total = baseline_mse_total[baseline_mse_total[, 1] == 1, 2:3]
 
 # output
@@ -62,6 +62,9 @@ for(i in 1:nrow(Design)){
     
     
     r_pl = numeric(length = nplayers) + as.integer(Design[i,1] / 2)
+    player_label = 1:nplayers %% 2 == 0
+    r_pl[player_label] = unlist(lapply((exp(pi_pl[1:(nplayers)])/(1+exp(pi_pl[1:(nplayers)])))[player_label],
+                                               rbinom, n = 1, size = as.numeric(Design[i,1])))
     r_it = numeric(nitems)
     first_half = unlist(lapply(exp(pi_it[1:(nitems/2)])/(1+exp(pi_it[1:(nitems/2)])), rbinom, n = 1, size = as.numeric(Design[i,2])))
     second_half = as.numeric(Design[i,2]) - rev(first_half)
@@ -75,8 +78,9 @@ for(i in 1:nrow(Design)){
     
     ad_text
     
-    HTs = hitting_times(r_pl,
+    HTs = hitting_times_CS(r_pl,
                         r_it,
+                        as.integer(player_label),
                         pi_pl,
                         pi_it,
                         nplayers,
@@ -89,12 +93,12 @@ for(i in 1:nrow(Design)){
                         ad[Design[i,4], 2],
                         as.integer(Design[i,5]),
                         mse_baseline,
-                        returns = "total")[[23]]
+                        returns = "total")[[24]]
     
     #saving results
     #creating fix cols
     dist_type = switch(as.character(Design[i,3]), "1" = "better", "0" = "central", "-1" = "worse")
-    params = c(Design[i,1],Design[i,2],ad_name[Design[i,4]], 100, "Urnings2",TRUE ,dist_type)
+    params = c(Design[i,1],Design[i,2],ad_name[Design[i,4]], 50, "Urnings2",TRUE ,dist_type)
     results[counter, 1:7] = params
     results[counter, r+7] = HTs
   }
@@ -102,6 +106,6 @@ for(i in 1:nrow(Design)){
   print(Design[i,])
 }
 
-           
 
-saveRDS(results, "output/ht_better.rds")
+
+saveRDS(results, "output/ht_better_50.rds")
