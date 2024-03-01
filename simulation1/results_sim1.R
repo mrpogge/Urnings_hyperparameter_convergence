@@ -458,7 +458,7 @@ lines(as.vector(unlist(b_player_percent[4,-1])), col = 4, lty = "dotted")
 
 ht_player_percent = hitting_times %>%
   group_by(player_percent) %>%
-  summarise(across(starts_with("ht"), ~ median(., na.rm = TRUE))) %>%
+  summarise(across(starts_with("ht"), ~ mean(., na.rm = TRUE))) %>%
   select(player_percent, starts_with('ht')) 
 
 ################################################################################

@@ -156,9 +156,9 @@ hitting_times_CS = function(student_starting,
   #loading the right compiled version of the C file 
   ################################################################################
   switch (OS,
-          "MAC" = dyn.load("hitting_times.so"),
-          "WINDOWS" = dyn.load("hitting_times.dll"),
-          "LINUX" = dyn.load("hitting_times.o")
+          "MAC" = dyn.load("hitting_timesCS.so"),
+          "WINDOWS" = dyn.load("hitting_timesCS.dll"),
+          "LINUX" = dyn.load("hitting_timesCS.o")
   )
   
   ################################################################################  
