@@ -1,28 +1,18 @@
 library(tidyverse)
-library(Hmisc)
-library(conover.test)
+library(patchwork)
 
 set.seed(13181913)
 
-CI_lm = function(v){
-  res = confint(lm(v ~ 1))[1:2]
-  return(res)
-}
-
-hitting_time = function(v, upper, lower){
-  hitting = upper > v & v > lower
-  return(which(hitting)[1])
-}
 #dir.create("figures", showWarnings = FALSE)
 ################################################################################
 #READING THE SIMULATION OUTPUTS
 ################################################################################
-sim1_urnings1_central = readRDS("sim1_urnings1_central.rds")
-sim1_urnings1_better = readRDS("sim1_urnings1_better.rds")
-sim1_urnings1_worse = readRDS("sim1_urnings1_worse.rds")
-sim1_urnings2_central = readRDS("sim1_urnings2_central.rds")
-sim1_urnings2_better = readRDS("sim1_urnings2_better.rds")
-sim1_urnings2_worse = readRDS("sim1_urnings2_worse.rds")
+sim1_urnings1_central = readRDS("output/sim1_urnings1_central.rds")
+sim1_urnings1_better = readRDS("output/sim1_urnings1_better.rds")
+sim1_urnings1_worse = readRDS("output/sim1_urnings1_worse.rds")
+sim1_urnings2_central = readRDS("output/sim1_urnings2_central.rds")
+sim1_urnings2_better = readRDS("output/sim1_urnings2_better.rds")
+sim1_urnings2_worse = readRDS("output/sim1_urnings2_worse.rds")
 
 index = as.matrix(rep(seq(1,1536, 1), each = 900))
 colnames(index) = "index"
@@ -34,10 +24,6 @@ results_u1 = cbind(index, rbind(sim1_urnings1_central,
 results = cbind(index, rbind(sim1_urnings2_central, 
                              sim1_urnings2_better, 
                              sim1_urnings2_worse))
-
-#results_ht = cbind(index, rbind(sim1_urnings2_central, 
-#                             sim1_urnings2_better, 
-#                             sim1_urnings2_worse))
 
 rm(sim1_urnings1_central, 
    sim1_urnings1_better, 
@@ -55,12 +41,11 @@ results = results %>%
 results_u1 = results_u1 %>% 
   mutate(across(starts_with("iter"), ~ (. - true_value)^2))
 
-#saveRDS(results, "sim1_MSE.rds")
 
 ################################################################################
 #Creating baselines
 ################################################################################
-baseline = readRDS("sim1_baseline.rds")
+baseline = readRDS("output/sim1_baseline.rds")
 baseline_MSE = baseline[[1]]
 baseline_MSE_u1 = baseline[[2]]
 
@@ -124,69 +109,22 @@ baseline_MSE_u1 = baseline_MSE_u1 %>%
 
 results = rbind(results, results_u1)
 baseline_MSE = rbind(baseline_MSE, baseline_MSE_u1)
-saveRDS(results, "collapsed_results.rds")
-saveRDS(baseline_MSE, "collapsed_baseline_MSE.rds")
+saveRDS(results, "output/collapsed_results.rds")
+saveRDS(baseline_MSE, "output/collapsed_baseline_MSE.rds")
 rm(results_u1, baseline_MSE_u1)
-results = readRDS("collapsed_results.rds")
-baseline_MSE = readRDS("collapsed_baseline_MSE.rds")
+results = readRDS("output/collapsed_results.rds")
+baseline_MSE = readRDS("output/collapsed_baseline_MSE.rds")
 
 ################################################################################
 #hitting time
 ################################################################################
-nplayers = 900
-us_parameters = c(8,16,32,64)
-dt_parameters = c("better", "worse", "central")
-parameter_combinations = expand.grid(us_parameters, dt_parameters)
-better_dist =  qnorm(seq(1/(nplayers+1),nplayers/(nplayers+1),length=nplayers),1,1)
-central_dist = qnorm(seq(1/(nplayers+1),nplayers/(nplayers+1),length=nplayers))
-worse_dist = qnorm(seq(1/(nplayers+1),nplayers/(nplayers+1),length=nplayers),-1,1)
-dists = data.frame("better" = better_dist,
-                   "central" = central_dist,
-                   "worse" = worse_dist)
-dists = exp(dists) / (1 + exp(dists))
+hitting_times = readRDS("output/hitting_times.rds")
+#write.csv(hitting_times, "hitting_times.csv")
 
-rm(better_dist, central_dist, worse_dist, us_parameters, dt_parameters)
-
-parameter_combinations = cbind(parameter_combinations, matrix(0,nrow(parameter_combinations),2))
-for(i in 1:nrow(parameter_combinations)){
-  tru_vals = dists[,parameter_combinations[i,2]]
-  us = as.numeric(parameter_combinations[i,1])
-  print(c(parameter_combinations[i,2], us))
-  chain = numeric(1000)
-  for(j in 1:1000){
-    chain[j] = mean(colMeans(((t(sapply(tru_vals,rbinom,n = 500,size = us)) / us) - tru_vals)^2))
-  }
-  parameter_combinations[i,3] = quantile(chain,0.975)
-  parameter_combinations[i,4] = quantile(chain,0.025)
-}
-
-hitting_times = cbind(results[,1:8], numeric(nrow(results)))
-colnames(hitting_times)[9] = "ht"
-for(i in 1:nrow(results)){
-  if(i %% 500 == 0){
-    print("oi mate")
-  }
-  hitting_times[i, 9] = hitting_time(results[i, 9:500],
-    upper = parameter_combinations[
-      which(parameter_combinations[,1] == unlist(results[i,"player_urn_size"]) & 
-            parameter_combinations[,2] == unlist(results[i,"dist_type"])) , 3],
-    lower = parameter_combinations[
-      which(parameter_combinations[,1] == unlist(results[i,"player_urn_size"]) & 
-              parameter_combinations[,2] == unlist(results[i,"dist_type"])) , 4])
-}
-
-saveRDS(hitting_times, "hitting_times.rds")
-hitting_times = readRDS("hitting_times.rds")
-write.csv(hitting_times, "hitting_times.csv")
 ################################################################################
 #MAIN EFFECT: Paired_update (No paired update vs Paired update) + 
 #Interaction between dist_type and paired update
 ################################################################################
-layout(matrix(c(1,1,2,2,
-                1,1,2,2,
-                3,3,4,4,
-                3,3,4,4), 4, 4, byrow = TRUE))
-
 puvsnpu = results %>%
   filter(player_label == 1) %>%
   group_by(paired_update) %>%
@@ -201,11 +139,6 @@ b_puvsnpu = baseline_MSE %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(paired_update,starts_with('iter'))
 
-plot(as.vector(unlist(puvsnpu[1,-1])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Averaged")
-lines(as.vector(unlist(puvsnpu[2,-1])), col = 2)
-lines(as.vector(unlist(b_puvsnpu[1,-1])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_puvsnpu[2,-1])), col = 2, lty = "dotted")
-
 #interaction between dist_type and paired update
 puvsnpu_dt = results %>%
   filter(player_label == 1) %>%
@@ -219,33 +152,40 @@ b_puvsnpu_dt = baseline_MSE %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(dist_type, paired_update,starts_with('iter'))
 
-plot(as.vector(unlist(puvsnpu_dt[1,-c(1:2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Mean = 1")
-lines(as.vector(unlist(puvsnpu_dt[4,-c(1:2)])), col = 2)
-lines(as.vector(unlist(b_puvsnpu_dt[1,-c(1:2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_puvsnpu_dt[4,-c(1:2)])), col = 2, lty = "dotted")
+#plotting
+df_h11 = rbind(puvsnpu_dt, puvsnpu, b_puvsnpu_dt, b_puvsnpu) %>% 
+          ungroup() %>%
+          mutate(res_type = c(rep("a", times = nrow(puvsnpu_dt) + nrow(puvsnpu)), rep("b", times = nrow(b_puvsnpu_dt) + nrow(b_puvsnpu)))) %>%
+          relocate(res_type, .before = 1)
 
-plot(as.vector(unlist(puvsnpu_dt[2,-c(1:2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Mean = 0")
-lines(as.vector(unlist(puvsnpu_dt[5,-c(1:2)])), col = 2)
-lines(as.vector(unlist(b_puvsnpu_dt[2,-c(1:2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_puvsnpu_dt[5,-c(1:2)])), col = 2, lty = "dotted")
+df_h11 = pivot_longer(df_h11,
+                       cols = starts_with("iter"),
+                       names_to = "variable",
+                       values_to = "value") %>%
+          mutate(variable = as.numeric(gsub("iter", "", variable))) %>%
+          replace_na(list(dist_type = "Averaged"))
 
-plot(as.vector(unlist(puvsnpu_dt[3,-c(1:2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Mean = -1")
-lines(as.vector(unlist(puvsnpu_dt[6,-c(1:2)])), col = 2)
-lines(as.vector(unlist(b_puvsnpu_dt[3,-c(1:2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_puvsnpu_dt[6,-c(1:2)])), col = 2, lty = "dotted")
+df_h11$dist_type = factor(df_h11$dist_type, levels = c("Averaged", "central","better", "worse"),
+                           labels = c("Averaged","N(0,1)", "N(1,1)","N(-1,1)"))
 
-options(pillar.sigfig=7)
+df_h11 %>%
+  ggplot(aes(x = variable, y = value, color = paired_update, linetype = res_type)) +
+  facet_wrap(dist_type ~ ., ncol = 2) +
+  geom_line() +
+  labs(x = "Iterations", y = "MSE") +
+  scale_linetype_manual(values = c("a" = "solid", "b" = "dotted"),
+                        name = "",
+                        labels = c("MSE", "baseline MSE")) +
+  scale_color_manual(values = c("TRUE" = "blue", "FALSE" = "red"),
+                     name = "",
+                     labels = c("Paired update", "No paired update")) +
+  jtools::theme_apa(legend.font.size = 10)
+
 pu_ht =hitting_times %>%
-  filter(player_label == 1) %>%
   group_by(paired_update) %>%
-  summarise(median(ht, na.rm = TRUE)) 
+  summarise(mean(ht, na.rm = TRUE)) 
 
 hitting_times = hitting_times %>% filter(player_label == 1)
-
-wilcox.test(ht ~ paired_update, hitting_times,
-  na.action = "na.omit"
-)
-
 
 ################################################################################
 #MAIN EFFECT: Algorithm type (Urnings1 vs Urnings2)
@@ -263,10 +203,27 @@ b_alg_type = baseline_MSE %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(algo, starts_with('iter'))
 
-plot(as.vector(unlist(alg_type[1,-1])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error")
-lines(as.vector(unlist(alg_type[2,-1])), col = 2)
-lines(as.vector(unlist(b_alg_type[1,-1])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_alg_type[2,-1])), col = 2, lty = "dotted")
+df_h12 = rbind(alg_type, b_alg_type) %>%
+         ungroup() %>%
+          mutate(res_type = c(rep("a", times = nrow(alg_type)),
+                              rep("b", times = nrow(b_alg_type)))) %>%
+          relocate(res_type, .before = 1) %>%
+          pivot_longer(cols = starts_with("iter"),
+                       names_to = "variable",
+                       values_to = "value") %>%
+          mutate(variable = as.numeric(gsub("iter", "", variable)))
+
+df_h12 %>%
+  ggplot(aes(x = variable, y = value, color = algo, linetype = res_type)) +
+  geom_line() +
+  labs(x = "Iterations", y = "MSE") +
+  scale_linetype_manual(values = c("a" = "solid", "b" = "dotted"),
+                        name = "",
+                        labels = c("MSE", "baseline MSE")) +
+  scale_color_manual(values = c("Urnings1" = "blue", "Urnings2" = "red"),
+                     name = "",
+                     labels = c("Urnings 1", "Urnings 2")) +
+  jtools::theme_apa(legend.font.size = 10)
 
 ht_alg = hitting_times %>% 
   filter(paired_update == "TRUE") %>%
@@ -275,15 +232,6 @@ ht_alg = hitting_times %>%
   select(algo, starts_with('ht'))
 
 hitting_times = hitting_times %>% filter(paired_update == "TRUE")
-
-wilcox.test(
-  as.vector(unlist(hitting_times[hitting_times[,"algo"] == "Urnings2", "ht"])),
-  as.vector(unlist(hitting_times[hitting_times[,"algo"] == "Urnings1", "ht"])),
-  na.action = "na.omit"
-)
-
-wilcox.test( ht ~ algo, hitting_times, na.action = "na.omit")
-
 
 ################################################################################
 #REDUCING DATA SIZE DUE TO THE PAIRED UPDATE RESULTS 
@@ -301,11 +249,6 @@ item_urnsizes = results %>%
   mutate_at(1, as.integer) %>%
   arrange(item_urn_size)
 
-plot(as.vector(unlist(item_urnsizes[1,-1])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error")
-for (i in 2:4) {
-  lines(as.vector(unlist(item_urnsizes[i,-1])), col = i)
-}
-
 b_item_urnsizes = baseline_MSE %>%
   group_by(item_urn_size) %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
@@ -313,19 +256,42 @@ b_item_urnsizes = baseline_MSE %>%
   mutate_at(1, as.integer) %>%
   arrange(item_urn_size)
 
+df_h13 = rbind(item_urnsizes, b_item_urnsizes) %>%
+        ungroup() %>%
+        mutate(res_type = c(rep("a", times = nrow(item_urnsizes)),
+                            rep("b", times = nrow(b_item_urnsizes)))) %>%
+        relocate(res_type, .before = 1) %>%
+        pivot_longer(cols = starts_with("iter"),
+                     names_to = "variable",
+                     values_to = "value") %>%
+        mutate(variable = as.numeric(gsub("iter", "", variable))) %>%
+        mutate(item_urn_size = as.character(item_urn_size))
 
-for (i in 1:4) {
-  lines(as.vector(unlist(b_item_urnsizes[i,-1])), col = i, lty = "dotted")
-}
+df_h13$item_urn_size = factor(df_h13$item_urn_size,
+                              levels = c("16", "32", "64", "128"),
+                              labels = c("16", "32", "64", "128"))
+
+
+plot_h13 = df_h13 %>%
+  ggplot(aes(x = variable, y = value, color = item_urn_size, linetype = res_type)) +
+  geom_line() +
+  labs(x = "", y = "MSE") +
+  scale_linetype_manual(values = c("a" = "solid", "b" = "dotted"),
+                        name = "",
+                        labels = c("MSE", "baseline MSE")) +
+  scale_color_manual(values = c("16" = "black",
+                                "32" = "red",
+                                "64" = "green",
+                                "128" = "blue"),
+                     name = "Item urn sizes") +
+  jtools::theme_apa(legend.font.size = 10)
 
 ht_item_urnsizes = hitting_times %>%
   group_by(item_urn_size) %>%
-  summarise(across(starts_with("ht"), ~ median(., na.rm = TRUE))) %>%
+  summarise(across(starts_with("ht"), ~ mean(., na.rm = TRUE))) %>%
   select(item_urn_size,starts_with('ht')) %>%
   mutate_at(1, as.integer) %>%
   arrange(item_urn_size)
-
-kruskal.test(ht ~ item_urn_size, hitting_times, na.action = "na.omit")
 
 #interaction cold start and item urn sizes
 item_urnsizes_cs = results %>%
@@ -336,11 +302,6 @@ item_urnsizes_cs = results %>%
   mutate_at(1, as.integer) %>%
   arrange(item_urn_size)
 
-plot(as.vector(unlist(item_urnsizes_cs[1,-1])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error")
-for (i in 2:4) {
-  lines(as.vector(unlist(item_urnsizes_cs[i,-1])), col = i)
-}
-
 b_item_urnsizes_cs = baseline_MSE %>%
   filter(player_percent == "999") %>%
   group_by(item_urn_size) %>%
@@ -348,10 +309,6 @@ b_item_urnsizes_cs = baseline_MSE %>%
   select(item_urn_size,starts_with('iter')) %>%
   mutate_at(1, as.integer) %>%
   arrange(item_urn_size)
-
-for (i in 1:4) {
-  lines(as.vector(unlist(b_item_urnsizes_cs[i,-1])), col = i, lty = "dotted")
-}
 
 ht_item_urnsizes_cs = hitting_times %>%
   filter(player_percent == "999") %>%
@@ -381,37 +338,47 @@ b_player_urnsizes = baseline_MSE %>%
   mutate_at(1, as.integer) %>%
   arrange(player_urn_size)
 
-plot(as.vector(unlist(player_urnsizes[1,-1])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error")
-for (i in 2:4) {
-  lines(as.vector(unlist(player_urnsizes[i,-1])), col = i)
-}
+df_h14 = rbind(player_urnsizes, b_player_urnsizes) %>%
+  ungroup() %>%
+  mutate(res_type = c(rep("a", times = nrow(player_urnsizes)),
+                      rep("b", times = nrow(b_player_urnsizes)))) %>%
+  relocate(res_type, .before = 1) %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable))) %>%
+  mutate(player_urn_size = as.character(player_urn_size))
 
-for (i in 1:4) {
-  lines(as.vector(unlist(b_player_urnsizes[i,-1])), col = i, lty = "dotted")
-}
+df_h14$player_urn_size = factor(df_h14$player_urn_size,
+                              levels = c("8", "16", "32", "64"),
+                              labels = c("8", "16", "32", "64"))
 
-for(i in 1:4){
-  print(hitting_time(player_urnsizes[i,-1], b_player_urnsizes[i,-1] + 0.01,  b_player_urnsizes[i,-1] -0.01))
-}
+plot_h14 = df_h14 %>%
+  ggplot(aes(x = variable, y = value, color = player_urn_size, linetype = res_type)) +
+  geom_line() +
+  labs(x = "Iterations", y = "MSE") +
+  scale_linetype_manual(values = c("a" = "solid", "b" = "dotted"),
+                        name = "",
+                        labels = c("MSE", "baseline MSE")) +
+  scale_color_manual(values = c("8" = "black",
+                                "16" = "red",
+                                "32" = "green",
+                                "64" = "blue"),
+                     name = "Student urn sizes") +
+  guides(color = guide_legend(order = 2),
+         linetype = guide_legend(order = 1)) + 
+  jtools::theme_apa(legend.font.size = 10) 
+
+
+plot_h13 + plot_h14 + plot_layout(nrow = 2, guides = "auto")
+
 
 ht_player_urnsizes = hitting_times %>% 
   group_by(player_urn_size) %>%
-  summarise(across(starts_with("ht"), ~ median(., na.rm = TRUE))) %>%
+  summarise(across(starts_with("ht"), ~ mean(., na.rm = TRUE))) %>%
   select(player_urn_size,starts_with('ht')) %>%
   mutate_at(1, as.integer) %>%
   arrange(player_urn_size)
-
-kruskal.test(ht~player_urn_size, hitting_times, na.action = "na.omit")
-conover.test(as.numeric(unlist(hitting_times[,"ht"])), 
-             as.factor(unlist(hitting_times[,"player_urn_size"])),
-             method = "bonferroni")
-
-mMSE_urnsizes_total = cbind(results[,c(1:8)], rowMeans(results[,408:508]))
-colnames(mMSE_urnsizes_total)[9] = "mMSE"
-kruskal.test(mMSE~player_urn_size, mMSE_urnsizes_total, na.action = "na.omit")
-conover.test(as.numeric(unlist(mMSE_urnsizes_total[,"mMSE"])), 
-             as.factor(unlist(mMSE_urnsizes_total[,"player_urn_size"])),
-             method = "bonferroni")
 
 ################################################################################
 #MAIN EFFECT: Adaptivity
@@ -421,16 +388,15 @@ adapt = results %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(adapt,starts_with('iter')) 
 
-plot(as.vector(unlist(adapt[4,-1])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error")
-lines(as.vector(unlist(adapt[1,-1])), col = 2)
-lines(as.vector(unlist(adapt[2,-1])), col = 3)
-lines(as.vector(unlist(adapt[3,-1])), col = 4)
-
 b_adapt = baseline_MSE %>% 
   group_by(adapt) %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(adapt,starts_with('iter')) 
 
+plot(as.vector(unlist(adapt[4,-1])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error")
+lines(as.vector(unlist(adapt[1,-1])), col = 2)
+lines(as.vector(unlist(adapt[2,-1])), col = 3)
+lines(as.vector(unlist(adapt[3,-1])), col = 4)
 lines(as.vector(unlist(b_adapt[4,-1])), col = 1, lty = "dotted")
 lines(as.vector(unlist(b_adapt[1,-1])), col = 2, lty = "dotted")
 lines(as.vector(unlist(b_adapt[2,-1])), col = 3, lty = "dotted")
@@ -438,13 +404,9 @@ lines(as.vector(unlist(b_adapt[3,-1])), col = 4, lty = "dotted")
 
 ht_adapt = hitting_times %>% 
   group_by(adapt) %>%
-  summarise(across(starts_with("ht"), ~ median(., na.rm = TRUE))) %>%
+  summarise(across(starts_with("ht"), ~ mean(., na.rm = TRUE))) %>%
   select(adapt,starts_with('ht')) 
 
-kruskal.test(ht~adapt, hitting_times, na.action = "na.omit")
-conover.test(as.numeric(unlist(hitting_times[,"ht"])), 
-             as.factor(unlist(hitting_times[,"adapt"])),
-             method = "bonferroni")
 ################################################################################
 #MAIN EFFECT: dist
 ################################################################################
@@ -496,13 +458,8 @@ lines(as.vector(unlist(b_player_percent[4,-1])), col = 4, lty = "dotted")
 
 ht_player_percent = hitting_times %>%
   group_by(player_percent) %>%
-  summarise(across(starts_with("ht"), ~ median(., na.rm = TRUE))) %>%
+  summarise(across(starts_with("ht"), ~ mean(., na.rm = TRUE))) %>%
   select(player_percent, starts_with('ht')) 
-
-kruskal.test(ht ~ player_percent, hitting_times)
-conover.test(as.numeric(unlist(hitting_times[,"ht"])), 
-             as.factor(unlist(hitting_times[,"player_percent"])),
-             method = "bonferroni")
 
 ################################################################################
 #INTERACTION EFFECT: Player urn sizes * adaptivity + coldstart or no coldstart
@@ -521,50 +478,38 @@ b_urnXadaptivity = baseline_MSE %>%
   mutate_at(1, as.integer) %>%
   arrange(player_urn_size)
 
-layout(matrix(c(1,1,2,2,
-                1,1,2,2,
-                3,3,4,4,
-                3,3,4,4), 4, 4, byrow = TRUE))
+df_h15 = rbind(urnXadaptivity, b_urnXadaptivity) %>%
+  ungroup() %>%
+  mutate(res_type = c(rep("a", times = nrow(urnXadaptivity)),
+                      rep("b", times = nrow(b_urnXadaptivity)))) %>%
+  relocate(res_type, .before = 1) %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable))) %>%
+  mutate(player_urn_size = as.character(player_urn_size))
 
-plot(as.vector(unlist(urnXadaptivity[4,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Urn size = 8")
-lines(as.vector(unlist(urnXadaptivity[1,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urnXadaptivity[3,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urnXadaptivity[2,-c(1,2)])), col = 4)
+df_h15$player_urn_size = factor(df_h15$player_urn_size,
+                                levels = c("8", "16", "32", "64"),
+                                labels = c("8", "16", "32", "64"))
+df_h15$adapt = factor(df_h15$adapt,
+                                levels = c("n_adaptive", "adaptive50", "adaptive70", "adaptive_sigma"),
+                                labels = c("Non-adaptive", "NK(0.5,0.5)", "NK(0.7,0.5)", "NK(0.5,0.25)"))
 
-lines(as.vector(unlist(b_urnXadaptivity[4,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[1,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[3,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[2,-c(1,2)])), col = 4, lty = "dotted")
-
-plot(as.vector(unlist(urnXadaptivity[8,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Urn size = 16")
-lines(as.vector(unlist(urnXadaptivity[5,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urnXadaptivity[7,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urnXadaptivity[6,-c(1,2)])), col = 4)
-
-lines(as.vector(unlist(b_urnXadaptivity[8,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[5,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[7,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[6,-c(1,2)])), col = 4, lty = "dotted")
-
-plot(as.vector(unlist(urnXadaptivity[12,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Urn size = 32")
-lines(as.vector(unlist(urnXadaptivity[9,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urnXadaptivity[11,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urnXadaptivity[10,-c(1,2)])), col = 4)
-
-lines(as.vector(unlist(b_urnXadaptivity[12,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[9,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[11,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[10,-c(1,2)])), col = 4, lty = "dotted")
-
-plot(as.vector(unlist(urnXadaptivity[16,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Urn size = 64")
-lines(as.vector(unlist(urnXadaptivity[13,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urnXadaptivity[15,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urnXadaptivity[14,-c(1,2)])), col = 4)
-
-lines(as.vector(unlist(b_urnXadaptivity[16,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[13,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[15,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[14,-c(1,2)])), col = 4, lty = "dotted")
+df_h15 %>%
+  ggplot(aes(x = variable, y = value, color = adapt, linetype = res_type)) +
+  facet_wrap(player_urn_size ~ ., ncol = 2) +
+  geom_line() +
+  labs(x = "Iterations", y = "MSE") +
+  scale_linetype_manual(values = c("a" = "solid", "b" = "dotted"),
+                        name = "",
+                        labels = c("MSE", "baseline MSE")) +
+  scale_color_manual(values = c("Non-adaptive" = "black",
+                                "NK(0.5,0.5)" = "red",
+                                "NK(0.7,0.5)" = "blue",
+                                "NK(0.5,0.25)" = "green"),
+                     name = "") +
+  jtools::theme_apa(legend.font.size = 10)
 
 ht_urnXadaptivity = hitting_times %>%
   group_by(player_urn_size, adapt) %>%
@@ -572,118 +517,6 @@ ht_urnXadaptivity = hitting_times %>%
   select(player_urn_size, adapt, starts_with('ht')) %>%
   mutate_at(1, as.integer) %>%
   arrange(player_urn_size)
-
-kruskal.test(ht ~ adapt, hitting_times[hitting_times[,"player_urn_size"] == "8",])
-conover.test(as.numeric(unlist(hitting_times[hitting_times[,"player_urn_size"] == "8","ht"])), 
-             as.factor(unlist(hitting_times[hitting_times[,"player_urn_size"] == "8","adapt"])),
-             method = "bonferroni")
-
-kruskal.test(ht ~ adapt, hitting_times[hitting_times[,"player_urn_size"] == "16",])
-conover.test(as.numeric(unlist(hitting_times[hitting_times[,"player_urn_size"] == "16","ht"])), 
-             as.factor(unlist(hitting_times[hitting_times[,"player_urn_size"] == "16","adapt"])),
-             method = "bonferroni")
-
-kruskal.test(ht ~ adapt, hitting_times[hitting_times[,"player_urn_size"] == "32",])
-conover.test(as.numeric(unlist(hitting_times[hitting_times[,"player_urn_size"] == "32","ht"])), 
-             as.factor(unlist(hitting_times[hitting_times[,"player_urn_size"] == "32","adapt"])),
-             method = "bonferroni")
-
-kruskal.test(ht ~ adapt, hitting_times[hitting_times[,"player_urn_size"] == "64",])
-conover.test(as.numeric(unlist(hitting_times[hitting_times[,"player_urn_size"] == "64","ht"])), 
-             as.factor(unlist(hitting_times[hitting_times[,"player_urn_size"] == "64","adapt"])),
-             method = "bonferroni")
-
-
-urnXadaptivity = results %>%
-  filter(player_percent != 999) %>%
-  group_by(player_urn_size, adapt) %>%
-  summarise(across(starts_with("iter"), ~ mean(.))) %>%
-  select(player_urn_size, adapt, starts_with('iter')) %>%
-  mutate_at(1, as.integer) %>%
-  arrange(player_urn_size)
-
-b_urnXadaptivity = baseline_MSE %>%
-  filter(player_percent != 999) %>%
-  group_by(player_urn_size, adapt) %>%
-  summarise(across(starts_with("iter"), ~ mean(.))) %>%
-  select(player_urn_size, adapt, starts_with('iter')) %>%
-  mutate_at(1, as.integer) %>%
-  arrange(player_urn_size)
-
-ht_urnXadaptivity = hitting_times %>%
-  filter(player_percent != 999) %>%
-  group_by(player_urn_size, adapt) %>%
-  summarise(across(starts_with("ht"), ~ median(.,na.rm = TRUE))) %>%
-  select(player_urn_size, adapt, starts_with('ht')) %>%
-  mutate_at(1, as.integer) %>%
-  arrange(player_urn_size)
-
-reduced_hitting_times = hitting_times %>% filter(player_percent != 999)
-
-kruskal.test(ht ~ adapt, reduced_hitting_times[reduced_hitting_times[,"player_urn_size"] == "8",])
-conover.test(as.numeric(unlist(reduced_hitting_times[reduced_hitting_times[,"player_urn_size"] == "8","ht"])), 
-             as.factor(unlist(reduced_hitting_times[reduced_hitting_times[,"player_urn_size"] == "8","adapt"])),
-             method = "bonferroni")
-
-kruskal.test(ht ~ adapt, reduced_hitting_times[reduced_hitting_times[,"player_urn_size"] == "16",])
-conover.test(as.numeric(unlist(reduced_hitting_times[reduced_hitting_times[,"player_urn_size"] == "16","ht"])), 
-             as.factor(unlist(reduced_hitting_times[reduced_hitting_times[,"player_urn_size"] == "16","adapt"])),
-             method = "bonferroni")
-
-kruskal.test(ht ~ adapt, reduced_hitting_times[reduced_hitting_times[,"player_urn_size"] == "32",])
-conover.test(as.numeric(unlist(reduced_hitting_times[reduced_hitting_times[,"player_urn_size"] == "32","ht"])), 
-             as.factor(unlist(reduced_hitting_times[reduced_hitting_times[,"player_urn_size"] == "32","adapt"])),
-             method = "bonferroni")
-
-kruskal.test(ht ~ adapt, reduced_hitting_times[reduced_hitting_times[,"player_urn_size"] == "64",])
-conover.test(as.numeric(unlist(reduced_hitting_times[reduced_hitting_times[,"player_urn_size"] == "64","ht"])), 
-             as.factor(unlist(reduced_hitting_times[reduced_hitting_times[,"player_urn_size"] == "64","adapt"])),
-             method = "bonferroni")
-
-layout(matrix(c(1,1,2,2,
-                1,1,2,2,
-                3,3,4,4,
-                3,3,4,4), 4, 4, byrow = TRUE))
-
-plot(as.vector(unlist(urnXadaptivity[4,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Urn size = 8")
-lines(as.vector(unlist(urnXadaptivity[1,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urnXadaptivity[3,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urnXadaptivity[2,-c(1,2)])), col = 4)
-
-lines(as.vector(unlist(b_urnXadaptivity[4,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[1,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[3,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[2,-c(1,2)])), col = 4, lty = "dotted")
-
-plot(as.vector(unlist(urnXadaptivity[8,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Urn size = 16")
-lines(as.vector(unlist(urnXadaptivity[5,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urnXadaptivity[7,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urnXadaptivity[6,-c(1,2)])), col = 4)
-
-lines(as.vector(unlist(b_urnXadaptivity[8,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[5,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[7,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[6,-c(1,2)])), col = 4, lty = "dotted")
-
-plot(as.vector(unlist(urnXadaptivity[12,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Urn size = 32")
-lines(as.vector(unlist(urnXadaptivity[9,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urnXadaptivity[11,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urnXadaptivity[10,-c(1,2)])), col = 4)
-
-lines(as.vector(unlist(b_urnXadaptivity[12,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[9,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[11,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[10,-c(1,2)])), col = 4, lty = "dotted")
-
-plot(as.vector(unlist(urnXadaptivity[16,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Urn size = 64")
-lines(as.vector(unlist(urnXadaptivity[13,-c(1,2)])), col = 2)
-lines(as.vector(unlist(urnXadaptivity[15,-c(1,2)])), col = 3)
-lines(as.vector(unlist(urnXadaptivity[14,-c(1,2)])), col = 4)
-
-lines(as.vector(unlist(b_urnXadaptivity[16,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[13,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[15,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_urnXadaptivity[14,-c(1,2)])), col = 4, lty = "dotted")
 
 ################################################################################
 #INTERACTION EFFECT: Player percent * adaptivity 
@@ -702,50 +535,38 @@ b_percentXadaptivity = baseline_MSE %>%
   mutate_at(1, as.integer) %>%
   arrange(player_percent)
 
-layout(matrix(c(1,1,2,2,
-                1,1,2,2,
-                3,3,4,4,
-                3,3,4,4), 4, 4, byrow = TRUE))
+df_h16 = rbind(percentXadaptivity, b_percentXadaptivity) %>%
+  ungroup() %>%
+  mutate(res_type = c(rep("a", times = nrow(percentXadaptivity)),
+                      rep("b", times = nrow(b_percentXadaptivity)))) %>%
+  relocate(res_type, .before = 1) %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable))) %>%
+  mutate(player_percent = as.character(player_percent))
 
-plot(as.vector(unlist(percentXadaptivity[4,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "New players 10%")
-lines(as.vector(unlist(percentXadaptivity[1,-c(1,2)])), col = 2)
-lines(as.vector(unlist(percentXadaptivity[3,-c(1,2)])), col = 3)
-lines(as.vector(unlist(percentXadaptivity[2,-c(1,2)])), col = 4)
+df_h16$player_percent = factor(df_h16$player_percent,
+                                levels = c("999","100", "50", "10"),
+                                labels = c("Total cold start", "100% new student", "50% new student", "10% new student"))
+df_h16$adapt = factor(df_h16$adapt,
+                      levels = c("n_adaptive", "adaptive50", "adaptive70", "adaptive_sigma"),
+                      labels = c("Non-adaptive", "NK(0.5,0.5)", "NK(0.7,0.5)", "NK(0.5,0.25)"))
 
-lines(as.vector(unlist(b_percentXadaptivity[4,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_percentXadaptivity[1,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_percentXadaptivity[3,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_percentXadaptivity[2,-c(1,2)])), col = 4, lty = "dotted")
-
-plot(as.vector(unlist(percentXadaptivity[8,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "New players 50%")
-lines(as.vector(unlist(percentXadaptivity[5,-c(1,2)])), col = 2)
-lines(as.vector(unlist(percentXadaptivity[7,-c(1,2)])), col = 3)
-lines(as.vector(unlist(percentXadaptivity[6,-c(1,2)])), col = 4)
-
-lines(as.vector(unlist(b_percentXadaptivity[8,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_percentXadaptivity[5,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_percentXadaptivity[7,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_percentXadaptivity[6,-c(1,2)])), col = 4, lty = "dotted")
-
-plot(as.vector(unlist(percentXadaptivity[12,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "New players 100%")
-lines(as.vector(unlist(percentXadaptivity[9,-c(1,2)])), col = 2)
-lines(as.vector(unlist(percentXadaptivity[11,-c(1,2)])), col = 3)
-lines(as.vector(unlist(percentXadaptivity[10,-c(1,2)])), col = 4)
-
-lines(as.vector(unlist(b_percentXadaptivity[12,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_percentXadaptivity[9,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_percentXadaptivity[11,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_percentXadaptivity[10,-c(1,2)])), col = 4, lty = "dotted")
-
-plot(as.vector(unlist(percentXadaptivity[16,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Total cold start")
-lines(as.vector(unlist(percentXadaptivity[13,-c(1,2)])), col = 2)
-lines(as.vector(unlist(percentXadaptivity[15,-c(1,2)])), col = 3)
-lines(as.vector(unlist(percentXadaptivity[14,-c(1,2)])), col = 4)
-
-lines(as.vector(unlist(b_percentXadaptivity[16,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_percentXadaptivity[13,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_percentXadaptivity[15,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_percentXadaptivity[14,-c(1,2)])), col = 4, lty = "dotted")
+df_h16 %>%
+  ggplot(aes(x = variable, y = value, color = adapt, linetype = res_type)) +
+  facet_wrap(player_percent ~ ., ncol = 2) +
+  geom_line() +
+  labs(x = "Iterations", y = "MSE") +
+  scale_linetype_manual(values = c("a" = "solid", "b" = "dotted"),
+                        name = "",
+                        labels = c("MSE", "baseline MSE")) +
+  scale_color_manual(values = c("Non-adaptive" = "black",
+                                "NK(0.5,0.5)" = "red",
+                                "NK(0.7,0.5)" = "blue",
+                                "NK(0.5,0.25)" = "green"),
+                     name = "") +
+  jtools::theme_apa(legend.font.size = 10)
 
 ht_percentXadaptivity = hitting_times %>%
   group_by(player_percent, adapt) %>%
@@ -753,28 +574,6 @@ ht_percentXadaptivity = hitting_times %>%
   select(player_percent, adapt, starts_with('ht')) %>%
   mutate_at(1, as.integer) %>%
   arrange(player_percent)
-
-kruskal.test(ht ~ player_percent, hitting_times[hitting_times[,"adapt"] == "n_adaptive",])
-conover.test(as.numeric(unlist(hitting_times[hitting_times[,"adapt"] == "n_adaptive","ht"])), 
-             as.factor(unlist(hitting_times[hitting_times[,"adapt"] == "n_adaptive","player_percent"])),
-             method = "bonferroni")
-
-kruskal.test(ht ~ player_percent, hitting_times[hitting_times[,"adapt"] == "adaptive50",])
-conover.test(as.numeric(unlist(hitting_times[hitting_times[,"adapt"] == "adaptive50","ht"])), 
-             as.factor(unlist(hitting_times[hitting_times[,"adapt"] == "adaptive50", "player_percent"])),
-             method = "bonferroni")
-
-kruskal.test(ht ~ player_percent, hitting_times[hitting_times[,"adapt"] == "adaptive70",])
-conover.test(as.numeric(unlist(hitting_times[hitting_times[,"adapt"] == "adaptive70","ht"])), 
-             as.factor(unlist(hitting_times[hitting_times[,"adapt"] == "adaptive70", "player_percent"])),
-             method = "bonferroni")
-
-kruskal.test(ht ~ player_percent, hitting_times[hitting_times[,"adapt"] == "adaptive_sigma",])
-conover.test(as.numeric(unlist(hitting_times[hitting_times[,"adapt"] == "adaptive_sigma","ht"])), 
-             as.factor(unlist(hitting_times[hitting_times[,"adapt"] == "adaptive_sigma", "player_percent"])),
-             method = "bonferroni")
-
-
 
 ################################################################################
 #INTERACTION EFFECT: dist_type * adaptivity 
@@ -790,57 +589,44 @@ b_distxadapt = baseline_MSE %>%
   select(dist_type, adapt, starts_with('iter'))
 
 
-layout(matrix(c(1,1,2,2,3,3,1,1,2,2,3,3), 2, 6, byrow = TRUE))
-plot(as.vector(unlist(distxadapt[4,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Mean = 1")
-lines(as.vector(unlist(distxadapt[1,-c(1,2)])), col = 2)
-lines(as.vector(unlist(distxadapt[3,-c(1,2)])), col = 3)
-lines(as.vector(unlist(distxadapt[2,-c(1,2)])), col = 4)
+df_h17 = rbind(distxadapt, b_distxadapt) %>%
+  ungroup() %>%
+  mutate(res_type = c(rep("a", times = nrow(distxadapt)),
+                      rep("b", times = nrow(b_distxadapt)))) %>%
+  relocate(res_type, .before = 1) %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable)))
 
-lines(as.vector(unlist(b_distxadapt[4,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_distxadapt[1,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_distxadapt[3,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_distxadapt[2,-c(1,2)])), col = 4, lty = "dotted")
+df_h17$dist_type = factor(df_h17$dist_type,
+                               levels = c("better","central", "worse"),
+                               labels = c("N(1,1)", "N(0,1)", "N(-1,1)"))
+df_h17$adapt = factor(df_h17$adapt,
+                      levels = c("n_adaptive", "adaptive50", "adaptive70", "adaptive_sigma"),
+                      labels = c("Non-adaptive", "NK(0.5,0.5)", "NK(0.7,0.5)", "NK(0.5,0.25)"))
 
-plot(as.vector(unlist(distxadapt[8,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Mean = 0")
-lines(as.vector(unlist(distxadapt[5,-c(1,2)])), col = 2)
-lines(as.vector(unlist(distxadapt[7,-c(1,2)])), col = 3)
-lines(as.vector(unlist(distxadapt[6,-c(1,2)])), col = 4)
+df_h17 %>%
+  ggplot(aes(x = variable, y = value, color = adapt, linetype = res_type)) +
+  facet_wrap(dist_type ~ ., nrow = 1) +
+  geom_line() +
+  labs(x = "Iterations", y = "MSE") +
+  scale_linetype_manual(values = c("a" = "solid", "b" = "dotted"),
+                        name = "",
+                        labels = c("MSE", "baseline MSE")) +
+  scale_color_manual(values = c("Non-adaptive" = "black",
+                                "NK(0.5,0.5)" = "red",
+                                "NK(0.7,0.5)" = "blue",
+                                "NK(0.5,0.25)" = "green"),
+                     name = "") +
+  jtools::theme_apa(legend.font.size = 10)
 
-lines(as.vector(unlist(b_distxadapt[8,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_distxadapt[5,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_distxadapt[7,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_distxadapt[6,-c(1,2)])), col = 4, lty = "dotted")
-
-plot(as.vector(unlist(distxadapt[12,-c(1,2)])), type = "l", ylim = c(0, 0.07), ylab = "Mean Squared Error", main = "Mean = -1")
-lines(as.vector(unlist(distxadapt[9,-c(1,2)])), col = 2)
-lines(as.vector(unlist(distxadapt[11,-c(1,2)])), col = 3)
-lines(as.vector(unlist(distxadapt[10,-c(1,2)])), col = 4)
-
-lines(as.vector(unlist(b_distxadapt[12,-c(1,2)])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_distxadapt[9,-c(1,2)])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_distxadapt[11,-c(1,2)])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_distxadapt[10, -c(1,2)])), col = 4, lty = "dotted")
 
 ht_distxadapt = hitting_times %>%
   group_by(dist_type, adapt) %>%
   summarise(across(starts_with("ht"), ~ median(.,na.rm = TRUE))) %>%
   select(dist_type, adapt, starts_with('ht'))
 
-
-kruskal.test(ht ~ adapt, hitting_times[hitting_times[,"dist_type"] == "better",])
-conover.test(as.numeric(unlist(hitting_times[hitting_times[,"dist_type"] == "better","ht"])), 
-             as.factor(unlist(hitting_times[hitting_times[,"dist_type"] == "better", "adapt"])),
-             method = "bonferroni")
-
-kruskal.test(ht ~ adapt, hitting_times[hitting_times[,"dist_type"] == "central",])
-conover.test(as.numeric(unlist(hitting_times[hitting_times[,"dist_type"] == "central","ht"])), 
-             as.factor(unlist(hitting_times[hitting_times[,"dist_type"] == "central", "adapt"])),
-             method = "bonferroni")
-
-kruskal.test(ht ~ adapt, hitting_times[hitting_times[,"dist_type"] == "worse",])
-conover.test(as.numeric(unlist(hitting_times[hitting_times[,"dist_type"] == "worse","ht"])), 
-             as.factor(unlist(hitting_times[hitting_times[,"dist_type"] == "worse", "adapt"])),
-             method = "bonferroni")
 
 save.image(file = "sim1_global_env.RData")
 
