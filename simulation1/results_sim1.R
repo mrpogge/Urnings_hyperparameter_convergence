@@ -1,5 +1,15 @@
 library(tidyverse)
 library(patchwork)
+library(pillar)
+
+# Change for the duration of the session:
+old <- options(
+  pillar.sigfig = 6,
+  pillar.print_max = 5,
+  pillar.print_min = 5,
+  pillar.advice = FALSE
+)
+
 
 set.seed(13181913)
 
@@ -181,11 +191,6 @@ df_h11 %>%
                      labels = c("Paired update", "No paired update")) +
   jtools::theme_apa(legend.font.size = 10)
 
-pu_ht =hitting_times %>%
-  group_by(paired_update) %>%
-  summarise(mean(ht, na.rm = TRUE)) 
-
-hitting_times = hitting_times %>% filter(player_label == 1)
 
 ################################################################################
 #MAIN EFFECT: Algorithm type (Urnings1 vs Urnings2)
@@ -224,14 +229,6 @@ df_h12 %>%
                      name = "",
                      labels = c("Urnings 1", "Urnings 2")) +
   jtools::theme_apa(legend.font.size = 10)
-
-ht_alg = hitting_times %>% 
-  filter(paired_update == "TRUE") %>%
-  group_by(algo) %>%
-  summarise(across(starts_with("ht"), ~ median(., na.rm = TRUE))) %>%
-  select(algo, starts_with('ht'))
-
-hitting_times = hitting_times %>% filter(paired_update == "TRUE")
 
 ################################################################################
 #REDUCING DATA SIZE DUE TO THE PAIRED UPDATE RESULTS 
@@ -285,6 +282,7 @@ plot_h13 = df_h13 %>%
                                 "128" = "blue"),
                      name = "Item urn sizes") +
   jtools::theme_apa(legend.font.size = 10)
+
 
 ht_item_urnsizes = hitting_times %>%
   group_by(item_urn_size) %>%
@@ -379,6 +377,26 @@ ht_player_urnsizes = hitting_times %>%
   select(player_urn_size,starts_with('ht')) %>%
   mutate_at(1, as.integer) %>%
   arrange(player_urn_size)
+
+
+#reliabilities
+pi_pl = qnorm(seq(1/(900+1),900/(900+1),length=900))
+pi_pl = exp(pi_pl) / (1 + exp(pi_pl)) 
+pi_pl = sort(pi_pl)
+
+rel_mat = matrix(0, nrow = 4, ncol = 1000)
+for(i in 1:1000){
+  rating_8 = sapply(pi_pl, rbinom, n = 1, size = 8) / 8
+  rating_16 = sapply(pi_pl, rbinom, n = 1, size = 16) / 16
+  rating_32 = sapply(pi_pl, rbinom, n = 1, size = 32) / 32
+  rating_64 = sapply(pi_pl, rbinom, n = 1, size = 64) / 64
+  rel_mat[1,i] = cor(pi_pl, rating_8)^2
+  rel_mat[2,i] = cor(pi_pl, rating_16)^2
+  rel_mat[3,i] = cor(pi_pl, rating_32)^2
+  rel_mat[4,i] = cor(pi_pl, rating_64)^2
+}
+rowMeans(rel_mat)
+
 
 ################################################################################
 #MAIN EFFECT: Adaptivity
@@ -551,7 +569,7 @@ df_h16$player_percent = factor(df_h16$player_percent,
                                 labels = c("Total cold start", "100% new student", "50% new student", "10% new student"))
 df_h16$adapt = factor(df_h16$adapt,
                       levels = c("n_adaptive", "adaptive50", "adaptive70", "adaptive_sigma"),
-                      labels = c("Non-adaptive", "NK(0.5,0.5)", "NK(0.7,0.5)", "NK(0.5,0.25)"))
+                      labels = c("Non-adaptive", "NK(0,0.5)", "NK(logit(0.7),0.5)", "NK(0,0.25)"))
 
 df_h16 %>%
   ggplot(aes(x = variable, y = value, color = adapt, linetype = res_type)) +
@@ -562,15 +580,15 @@ df_h16 %>%
                         name = "",
                         labels = c("MSE", "baseline MSE")) +
   scale_color_manual(values = c("Non-adaptive" = "black",
-                                "NK(0.5,0.5)" = "red",
-                                "NK(0.7,0.5)" = "blue",
-                                "NK(0.5,0.25)" = "green"),
+                                "NK(0,0.5)" = "red",
+                                "NK(logit(0.7),0.5)" = "blue",
+                                "NK(0,0.25)" = "green"),
                      name = "") +
   jtools::theme_apa(legend.font.size = 10)
 
 ht_percentXadaptivity = hitting_times %>%
   group_by(player_percent, adapt) %>%
-  summarise(across(starts_with("ht"), ~ median(., na.rm = TRUE))) %>%
+  summarise(across(starts_with("ht"), ~ mean(., na.rm = TRUE))) %>%
   select(player_percent, adapt, starts_with('ht')) %>%
   mutate_at(1, as.integer) %>%
   arrange(player_percent)
@@ -604,7 +622,7 @@ df_h17$dist_type = factor(df_h17$dist_type,
                                labels = c("N(1,1)", "N(0,1)", "N(-1,1)"))
 df_h17$adapt = factor(df_h17$adapt,
                       levels = c("n_adaptive", "adaptive50", "adaptive70", "adaptive_sigma"),
-                      labels = c("Non-adaptive", "NK(0.5,0.5)", "NK(0.7,0.5)", "NK(0.5,0.25)"))
+                      labels = c("Non-adaptive", "NK(0,0.5)", "NK(logit(0.7),0.5)", "NK(0,0.25)"))
 
 df_h17 %>%
   ggplot(aes(x = variable, y = value, color = adapt, linetype = res_type)) +
@@ -615,9 +633,9 @@ df_h17 %>%
                         name = "",
                         labels = c("MSE", "baseline MSE")) +
   scale_color_manual(values = c("Non-adaptive" = "black",
-                                "NK(0.5,0.5)" = "red",
-                                "NK(0.7,0.5)" = "blue",
-                                "NK(0.5,0.25)" = "green"),
+                                "NK(0,0.5)" = "red",
+                                "NK(logit(0.7),0.5)" = "blue",
+                                "NK(0,0.25)" = "green"),
                      name = "") +
   jtools::theme_apa(legend.font.size = 10)
 
@@ -631,7 +649,47 @@ ht_distxadapt = hitting_times %>%
 save.image(file = "sim1_global_env.RData")
 
 
+################################################################################
+#bootstrap trials
+################################################################################
 
 
+# Assuming 'data' is your data frame
+n <- 50  # Number of cases to sample in each group
+B <- 10  # Number of bootstrap samples
 
+sample_and_summarize = function(data, group, times){
+  group = rlang::parse_exprs(group)
+  sampled_data <- results %>%
+    group_by(!!!group) %>%
+    slice_sample(n = n, replace = FALSE)  # Randomly sample n cases
+  
+  summary <- sampled_data %>%
+    group_by(!!!group) %>%
+    summarize(across(starts_with("iter"), ~ mean(.)))  # Calculate mean of columns
+  
+  return(summary)
+}
 
+sample_and_summarize(results, "player_urn_size")
+
+c95 = function(v){
+  return(t.test(v)$conf.int[2]-t.test(v)$conf.int[1])
+}
+
+boot_sim_res = function(data, times, group){
+  # Repeat the sampling and summarizing process n times
+  boot_data <- map_dfr(1:times, ~ sample_and_summarize(data, group))
+  boot_data = boot_data %>% 
+              group_by(!!!rlang::parse_exprs(group)) %>%
+              summarise(across(starts_with("iter1"), ~ c95(.)))
+  
+  return(boot_data)
+}
+
+boot_urnsizes = boot_sim_res(results, 100, "player_urn_size")
+plot(as.numeric(unlist(boot_urnsizes[1,-1])), type = "l")
+boot = boot_sim_res(results, 100, "player_percent")
+plot(as.numeric(unlist(boot[1,-1])), type = "l")
+boot = boot_sim_res(results, 100, "adapt")
+plot(as.numeric(unlist(boot[1,-1])), type = "l")
