@@ -178,7 +178,7 @@ hitting_times_CS = function(student_starting,
   LLsum=rep(0,n_scores)
   
   HT = 0
-  MSE = (student_starting/student_urn_size - Theta)^2
+  MSE = 1
   ################################################################################
   #call the C function to perform the simulation
   ################################################################################
@@ -206,13 +206,14 @@ hitting_times_CS = function(student_starting,
           as.integer(LLsum),
           as.double(MSE),
           as.double(mse_baseline),
-          as.integer(HT))#and again
+          as.integer(HT),
+          as.integer(sum(player_label)))#and again
   
   ################################################################################
   #returning the results
   ################################################################################
   if(returns == "simple"){
-    U=tmp[[23]]
+    U=tmp[[24]]
     return(U)
   } else {
     return(tmp)

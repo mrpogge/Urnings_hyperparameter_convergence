@@ -70,6 +70,7 @@ for(i in 1:nrow(Design)){
     second_half = as.numeric(Design[i,2]) - rev(first_half)
     r_it = c(first_half, second_half)
     r_pl = r_pl[indexing]
+    player_label = player_label[indexing]
     
     Theta = matrix(rep(pi_pl, times = ngames), ncol = ngames, nrow = nplayers, byrow = TRUE)
     Delta = matrix(rep(pi_it, times = ngames), ncol = ngames, nrow = nitems, byrow = TRUE)

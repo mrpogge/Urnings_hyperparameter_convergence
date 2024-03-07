@@ -91,8 +91,12 @@ plot_h21 = df_h21 %>%
          linetype = guide_legend(order = 1)) + 
   jtools::theme_apa(legend.font.size = 10) 
 
-
-
+mmse_neg = mean(as.numeric(unlist(change_me[1,c(401:500)])) - as.numeric(unlist(true_change_me[1,c(401:500)])))
+mmse_0 = mean(as.numeric(unlist(change_me[2,c(401:500)])) - as.numeric(unlist(true_change_me[2,c(401:500)])))
+mmse_half = mean(as.numeric(unlist(change_me[3,c(401:500)])) - as.numeric(unlist(true_change_me[3,c(401:500)])))
+mmse_one = mean(as.numeric(unlist(change_me[4,c(401:500)])) - as.numeric(unlist(true_change_me[4,c(401:500)])))
+mmse_two = mean(as.numeric(unlist(change_me[5,c(401:500)])) - as.numeric(unlist(true_change_me[5,c(401:500)])))
+print(c(mmse_neg, mmse_0, mmse_half, mmse_one, mmse_two))
 
 ################################################################################
 #Interaction between urn sizes and change
@@ -510,28 +514,48 @@ plot_h23 + plot_h23B + plot_layout(ncol = 2, guides = "collect")
 ################################################################################
 #making tables
 ################################################################################
+
+last_mean = function(v, last){
+  return(mean(v[(length(v)-last-1):length(v)]))
+}
+
 table_mse_helper = linear_mse %>%
   group_by(dist_type, player_urn_size, adapt, amount_of_change) %>%
-  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  summarise(across(starts_with("iter"), ~ mean(.,))) %>%
   select(dist_type, player_urn_size, adapt, amount_of_change,starts_with("iter"))
 
 table_mse = cbind(table_mse_helper[,1:4], numeric(nrow(table_mse_helper)))
 table_mse[,5] = rowMeans(table_mse_helper[, -c(1:4)])
 colnames(table_mse)[5] = "mse"
 
+
+best_us = matrix(0, nrow = 60, ncol = 4)
+counter = 1
+for(i in unique(table_mse$dist_type)){
+  for(j in unique(table_mse$adapt)){
+    for(k in unique(table_mse$amount_of_change)){
+      
+      condition = table_mse$dist_type == i & table_mse$adapt == j & table_mse$amount_of_change == k
+      tab = table_mse[condition, ]
+      best_us[counter, ] = c(i,j,k,unlist(tab[which.min(tab$mse),"player_urn_size"]))
+      counter = counter + 1
+    }
+  }
+}
+
 table_baseline_mse_helper = baseline_linear %>%
   group_by(dist_type, player_urn_size, adapt, amount_of_change) %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(dist_type, player_urn_size, adapt, amount_of_change, starts_with("iter"))
 
-table_mse_wide = table_mse %>% pivot_wider(names_from = adapt, values_from = mse)
-
 table_baseline_mse = cbind(table_baseline_mse_helper[,1:4], numeric(nrow(table_baseline_mse_helper)))
 table_baseline_mse[,5] = rowMeans(table_baseline_mse_helper[, -c(1:4)])
 
 table_mse_diff = table_mse
-table_mse_diff_helper = table_mse[,5] - table_baseline_mse[,5]
+table_mse_diff[,5] = table_mse[,5] - table_baseline_mse[,5]
 
+table_balance = table_mse
+table_balance[,5] = table_mse[,5] / (table_mse[,5] - table_baseline_mse[,5])
 
 ###############################################################################
 #testing and reporting

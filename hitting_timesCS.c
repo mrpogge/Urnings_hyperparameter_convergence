@@ -25,7 +25,8 @@ void urnings_simpleCS_HT(int*adaptive,
                          int*LLsum,
                          double*MSE,
                          double*mse_baseline,
-                         int*HT){
+                         int*HT,
+                         int*nnew){
   double L=0;
   double p=0;
   double Mp=0;
@@ -181,10 +182,9 @@ void urnings_simpleCS_HT(int*adaptive,
           /*compute the average MSE across persons*/
             MSE[0]=0;
             for(int i=0;i<N[0];i++){
-              if(label[i] == 1){
                 dif=1.00*u[i]/k1[0]-1.00/(1+exp(-theta[i]));/*difference between the rating and the true value on the [0,1] scale*/
-                  MSE[0]=MSE[0]+dif*dif/N[0];
-              }
+                  MSE[0]=MSE[0]+(dif*dif/nnew[0])*label[i];
+              
             }
       }
   }

@@ -63,16 +63,14 @@ for(i in 1:nrow(Design)){
     
     r_pl = numeric(length = nplayers) + as.integer(Design[i,1] / 2)
     player_label = 1:nplayers %% 10 == 0
-    r_pl[player_label] = unlist(lapply((exp(pi_pl[1:(nplayers)])/(1+exp(pi_pl[1:(nplayers)])))[player_label],
+    r_pl[!player_label] = unlist(lapply((exp(pi_pl[1:(nplayers)])/(1+exp(pi_pl[1:(nplayers)])))[!player_label],
                                        rbinom, n = 1, size = as.numeric(Design[i,1])))
     r_it = numeric(nitems)
     first_half = unlist(lapply(exp(pi_it[1:(nitems/2)])/(1+exp(pi_it[1:(nitems/2)])), rbinom, n = 1, size = as.numeric(Design[i,2])))
     second_half = as.numeric(Design[i,2]) - rev(first_half)
     r_it = c(first_half, second_half)
     r_pl = r_pl[indexing]
-    
-    Theta = matrix(rep(pi_pl, times = ngames), ncol = ngames, nrow = nplayers, byrow = TRUE)
-    Delta = matrix(rep(pi_it, times = ngames), ncol = ngames, nrow = nitems, byrow = TRUE)
+    player_label = player_label[indexing]
     
     mse_baseline = baseline_mse_total[baseline_mse_total[,1] == Design[i,1], 2]
     
