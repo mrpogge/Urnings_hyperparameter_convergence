@@ -44,7 +44,7 @@ The supplementary material containing additional results we refer to in the manu
 distribution of the modified Urnings algorithm can be found in Figshare using this link: 
 
 ### Licensing
-All material concerning this research falls under the XY licence. Replication of the results and further analysis is warmly welcomed!
+All material concerning this research falls under the GPL 3.0 licence. Replication of the results and further analysis is warmly welcomed!
 
 ### Closing remarks
 
