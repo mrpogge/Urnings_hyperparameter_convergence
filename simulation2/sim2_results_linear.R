@@ -239,7 +239,7 @@ lines(as.vector(unlist(true_changeXadapt[14,-c(1,2)])), col = 4, lty = "dotted")
 lines(as.vector(unlist(true_changeXadapt[15,-c(1,2)])), col = 5, lty = "dotted")
 
 ################################################################################
-#Linear change and dist type
+#Linear change and dist type 0.7
 ################################################################################
 # this is the analysis we are looking for
 changeXdist = sim2_linear %>%
@@ -511,51 +511,7 @@ plot_h23B = df_h23B %>%
 
 plot_h23 + plot_h23B + plot_layout(ncol = 2, guides = "collect")
 
-################################################################################
-#making tables
-################################################################################
 
-last_mean = function(v, last){
-  return(mean(v[(length(v)-last-1):length(v)]))
-}
-
-table_mse_helper = linear_mse %>%
-  group_by(dist_type, player_urn_size, adapt, amount_of_change) %>%
-  summarise(across(starts_with("iter"), ~ mean(.,))) %>%
-  select(dist_type, player_urn_size, adapt, amount_of_change,starts_with("iter"))
-
-table_mse = cbind(table_mse_helper[,1:4], numeric(nrow(table_mse_helper)))
-table_mse[,5] = rowMeans(table_mse_helper[, -c(1:4)])
-colnames(table_mse)[5] = "mse"
-
-
-best_us = matrix(0, nrow = 60, ncol = 4)
-counter = 1
-for(i in unique(table_mse$dist_type)){
-  for(j in unique(table_mse$adapt)){
-    for(k in unique(table_mse$amount_of_change)){
-      
-      condition = table_mse$dist_type == i & table_mse$adapt == j & table_mse$amount_of_change == k
-      tab = table_mse[condition, ]
-      best_us[counter, ] = c(i,j,k,unlist(tab[which.min(tab$mse),"player_urn_size"]))
-      counter = counter + 1
-    }
-  }
-}
-
-table_baseline_mse_helper = baseline_linear %>%
-  group_by(dist_type, player_urn_size, adapt, amount_of_change) %>%
-  summarise(across(starts_with("iter"), ~ mean(.))) %>%
-  select(dist_type, player_urn_size, adapt, amount_of_change, starts_with("iter"))
-
-table_baseline_mse = cbind(table_baseline_mse_helper[,1:4], numeric(nrow(table_baseline_mse_helper)))
-table_baseline_mse[,5] = rowMeans(table_baseline_mse_helper[, -c(1:4)])
-
-table_mse_diff = table_mse
-table_mse_diff[,5] = table_mse[,5] - table_baseline_mse[,5]
-
-table_balance = table_mse
-table_balance[,5] = table_mse[,5] / (table_mse[,5] - table_baseline_mse[,5])
 
 ###############################################################################
 #testing and reporting
@@ -694,11 +650,190 @@ dist_type_neg_bias_final
 
 ###################################### checking mse diffs in the last 100 iterations and 
 # mse testing
+colnames(post_hoc_mse)[1] = "dist_type" 
+colnames(baseline_post_hoc)[1] = "dist_type" 
+
+testing_full = rbind(linear_mse, post_hoc_mse)
+baseline_full = rbind(baseline_linear, baseline_post_hoc)
+
+div_plots_data = testing_full %>%
+                  filter(dist_type == "worse",  adapt== "adaptive_sigma", amount_of_change == 0.004) %>%
+                  group_by(player_urn_size) %>%
+                  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+                  select(player_urn_size,starts_with("iter")) %>%
+                  mutate_at(vars(player_urn_size), as.numeric) %>%
+                  arrange(player_urn_size)
+
+div_baseline = baseline_full %>%
+                filter(dist_type == "worse",  adapt== "adaptive_sigma", amount_of_change == 0.004) %>%
+                group_by(player_urn_size) %>%
+                summarise(across(starts_with("iter"), ~ mean(.))) %>%
+                select(player_urn_size,starts_with("iter")) %>%
+                mutate_at(vars(player_urn_size), as.numeric) %>%
+                arrange(player_urn_size)
+
+
+div_plots_data = as.data.frame(div_plots_data)
+div_baseline = as.data.frame(div_baseline)
+plot(as.numeric(div_plots_data[3,-1] - div_baseline[3,-1]), type = "l", ylim = c(0,0.009))
+for(i in 4:nrow(div_plots_data)){
+  lines(as.numeric(div_plots_data[i,-1] - div_baseline[i,-1]), col = i)
+}
+
+div_total = testing_full %>%
+  filter(dist_type == "worse",  adapt== "adaptive_sigma") %>%
+  group_by(player_urn_size) %>%
+  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  select(player_urn_size,starts_with("iter")) %>%
+  mutate_at(vars(player_urn_size), as.numeric) %>%
+  arrange(player_urn_size)
+
+div_total_baseline = baseline_full %>%
+  filter(dist_type == "worse",  adapt== "adaptive_sigma") %>%
+  group_by(player_urn_size) %>%
+  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  select(player_urn_size,starts_with("iter")) %>%
+  mutate_at(vars(player_urn_size), as.numeric) %>%
+  arrange(player_urn_size)
+
+
+div_total = as.data.frame(div_total)
+div_total_baseline = as.data.frame(div_total_baseline)
+plot(as.numeric(div_total[3,-1] - div_total_baseline[3,-1]), type = "l", ylim = c(0,0.009))
+for(i in 4:nrow(div_total)){
+  lines(as.numeric(div_total[i,-1] - div_total_baseline[i,-1]), col = i)
+}
+
+################################################################################
+#change x urn size MSE
+################################################################################
+changeXurnsizeMSE = testing_full %>%
+  filter(dist_type == "central") %>%
+  group_by(player_urn_size, amount_of_change) %>%
+  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  select(player_urn_size,amount_of_change, starts_with("iter")) %>%
+  mutate_at(vars(player_urn_size), as.numeric) %>%
+  arrange(player_urn_size)
+
+changeXurnsizeMSE_B = baseline_full %>%
+  filter(dist_type == "central") %>%
+  group_by(player_urn_size, amount_of_change) %>%
+  summarise(across(starts_with("iter"), ~ mean(.))) %>%
+  select(player_urn_size,amount_of_change, starts_with("iter")) %>%
+  mutate_at(vars(player_urn_size), as.numeric) %>%
+  arrange(player_urn_size)
+
+
+df_h24 =changeXurnsizeMSE %>%
+  ungroup() %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable)))
+
+df_h24B = changeXurnsizeMSE_B %>%
+  ungroup() %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable)))
+
+df_h24$player_urn_size = factor(df_h24$player_urn_size,
+                                levels = c("8","16", "32", "64", "80", "96", "112", "128"),
+                                labels = c("8","16", "32", "64", "80", "96", "112", "128"))
+df_h24B$player_urn_size = factor(df_h24B$player_urn_size,
+                                 levels = c("8","16", "32", "64", "80", "96", "112", "128"),
+                                 labels = c("8","16", "32", "64", "80", "96", "112", "128"))
+
+plot_h24 = df_h24 %>%
+  ggplot(aes(x = variable, y = value, color = player_urn_size)) +
+  facet_wrap(vars(amount_of_change), nrow = 1) +
+  geom_line() +
+  labs(x = "Iterations", y = "MSE") +
+  scale_color_manual(values = c("8" = "black",
+                                "16" = "red",
+                                "32" = "green",
+                                "64" = "blue",
+                                "80" = "purple",
+                                "96" = "gold",
+                                "112" = "grey",
+                                "128" = "aquamarine3"),
+                     name = "Student urn sizes") +
+  jtools::theme_apa(legend.font.size = 10) 
+
+df_h24B$value = df_h24$value - df_h24B$value
+plot_h43B = df_h24B %>%
+  ggplot(aes(x = variable, y = value, color = player_urn_size)) +
+  facet_wrap(vars(amount_of_change), nrow = 1) + 
+  geom_line() +
+  labs(x = "Iterations", y = "MSE Difference") +
+  scale_color_manual(values = c("8" = "black",
+                                "16" = "red",
+                                "32" = "green",
+                                "64" = "blue",
+                                "80" = "purple",
+                                "96" = "gold",
+                                "112" = "grey",
+                                "128" = "aquamarine3"),
+                     name = "Student urn sizes") +
+  jtools::theme_apa(legend.font.size = 10) 
+
+plot_h24 + plot_h43B + plot_layout(nrow = 2, guides = "collect")
+
+################################################################################
+#making tables
+################################################################################
+
+
+table_mse_helper = testing_full %>%
+  group_by(dist_type, player_urn_size, adapt, amount_of_change) %>%
+  summarise(across(starts_with("iter"), ~ mean(.,))) %>%
+  select(dist_type, player_urn_size, adapt, amount_of_change,starts_with("iter"))
+
+table_mse = cbind(table_mse_helper[,1:4], numeric(nrow(table_mse_helper)))
+table_mse[,5] = rowMeans(table_mse_helper[,401:500])
+colnames(table_mse)[5] = "mse"
+
+
+best_us = matrix(0, nrow = 60, ncol = 4)
+counter = 1
+for(i in unique(table_mse$dist_type)){
+  for(j in unique(table_mse$adapt)){
+    for(k in unique(table_mse$amount_of_change)){
+      
+      condition = table_mse$dist_type == i & table_mse$adapt == j & table_mse$amount_of_change == k
+      tab = table_mse[condition, ]
+      best_us[counter, ] = c(i,j,k,unlist(tab[which.min(tab$mse),"player_urn_size"]))
+      counter = counter + 1
+    }
+  }
+}
+
+table_mse_helper = testing_full %>%
+  group_by(dist_type, player_urn_size, adapt) %>%
+  summarise(across(starts_with("iter"), ~ mean(.,))) %>%
+  select(dist_type, player_urn_size, adapt,starts_with("iter"))
+
+table_mse = cbind(table_mse_helper[,1:4], numeric(nrow(table_mse_helper)))
+table_mse[,5] = rowMeans(table_mse_helper[,401:500])
+colnames(table_mse)[5] = "mse"
+
+
+best_us = matrix(0, nrow = 12, ncol = 3)
+counter = 1
+for(i in unique(table_mse$dist_type)){
+  for(j in unique(table_mse$adapt)){
+      
+      condition = table_mse$dist_type == i & table_mse$adapt == j
+      tab = table_mse[condition, ]
+      best_us[counter, ] = c(i,j,unlist(tab[which.min(tab$mse),"player_urn_size"]))
+      counter = counter + 1
+    }
+  }
 
 rowMeans(urn_size_difference[401:500])[c(4,1,2,3)] #4123
 rowMeans(post_hoc_difference[401:500])[c(3,4,1,2)] #3412
 
-colnames(post_hoc_mse)[1] = "dist_type"
 testing_df = rbind(cbind(linear_mse[,1:6], mMSE = rowMeans(linear_mse[,407:506])),
                    cbind(post_hoc_mse[,1:6], mMSE = rowMeans(post_hoc_mse[,407:506])))
 

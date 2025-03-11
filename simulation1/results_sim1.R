@@ -188,7 +188,7 @@ df_h11 %>%
                         labels = c("MSE", "baseline MSE")) +
   scale_color_manual(values = c("TRUE" = "blue", "FALSE" = "red"),
                      name = "",
-                     labels = c("Paired update", "No paired update")) +
+                     labels = c("No paired update", "Paired update")) +
   jtools::theme_apa(legend.font.size = 10)
 
 
@@ -455,24 +455,51 @@ ht_dist = hitting_times %>%
 #MAIN EFFECT: cold start
 ################################################################################
 player_percent = results %>%
+  filter(dist_type == "central") %>%
   group_by(player_percent) %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(player_percent, starts_with('iter')) 
 
 b_player_percent = baseline_MSE %>%
+  filter(dist_type == "central") %>%
   group_by(player_percent) %>%
   summarise(across(starts_with("iter"), ~ mean(.))) %>%
   select(player_percent, starts_with('iter')) 
 
-plot(as.vector(unlist(player_percent[1,-1])),  ylim = c(0, 0.07), type = "l", ylab = "Mean Squared Error")
-lines(as.vector(unlist(player_percent[3,-1])), col = 2)
-lines(as.vector(unlist(player_percent[2,-1])), col = 3)
-lines(as.vector(unlist(player_percent[4,-1])), col = 4)
+df_h12 = rbind(player_percent, b_player_percent) %>%
+  ungroup() %>%
+  mutate(res_type = c(rep("a", times = 4),
+                      rep("b", times = 4))) %>%
+  relocate(res_type, .before = 1) %>%
+  pivot_longer(cols = starts_with("iter"),
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(variable = as.numeric(gsub("iter", "", variable))) %>%
+  mutate(player_urn_size = as.character(player_percent))
 
-lines(as.vector(unlist(b_player_percent[1,-1])), col = 1, lty = "dotted")
-lines(as.vector(unlist(b_player_percent[3,-1])), col = 2, lty = "dotted")
-lines(as.vector(unlist(b_player_percent[2,-1])), col = 3, lty = "dotted")
-lines(as.vector(unlist(b_player_percent[4,-1])), col = 4, lty = "dotted")
+df_h12$player_percent = factor(df_h12$player_percent,
+                                levels = c("10", "100", "50", "999"),
+                                labels = c("10% new student",
+                                           "100% new student",
+                                           "50% new student",
+                                           "Total cold start"))
+
+plot_h12 = df_h12 %>%
+  ggplot(aes(x = variable, y = value, color = player_percent, linetype = res_type)) +
+  geom_line() +
+  labs(x = "Iterations", y = "MSE") +
+  scale_linetype_manual(values = c("a" = "solid", "b" = "dotted"),
+                        name = "",
+                        labels = c("MSE", "baseline MSE")) +
+  scale_color_manual(values = c("10% new student" = "black",
+                                "50% new student" = "red",
+                                "100% new student" = "green",
+                                "Total cold start" = "blue"),
+                     name = "Severity of cold start") +
+  guides(color = guide_legend(order = 2),
+         linetype = guide_legend(order = 1)) + 
+  jtools::theme_apa(legend.font.size = 10) 
+
 
 ht_player_percent = hitting_times %>%
   group_by(player_percent) %>%
